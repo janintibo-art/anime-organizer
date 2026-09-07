@@ -58,7 +58,7 @@ class _DetailScreenState extends State<DetailScreen> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Titre a rechercher'),
+          decoration: fieldDecoration(hintText: 'Titre a rechercher'),
         ),
         actions: [
           TextButton(
@@ -145,7 +145,7 @@ class _DetailScreenState extends State<DetailScreen> {
         final synopsis = _showOriginal ? anime.synopsisEn : anime.synopsis;
 
         return Scaffold(
-          appBar: AppBar(
+          appBar: darkAppBar(
             title: Text(anime.title, overflow: TextOverflow.ellipsis),
             actions: [
               IconButton(

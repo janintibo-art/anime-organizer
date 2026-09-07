@@ -61,6 +61,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Text(current, overflow: TextOverflow.ellipsis),
         actions: [
           if (widget.episodes.length > 1)

@@ -16,6 +16,54 @@ class Palette {
   static const muted = Color(0xFF9A90B3);
 }
 
+/// Decoration commune des champs de saisie.
+/// Definie ici plutot que dans le theme : l'API du theme change souvent
+/// d'une version de Flutter a l'autre, celle-ci est stable.
+InputDecoration fieldDecoration({
+  String? hintText,
+  String? labelText,
+  Widget? prefixIcon,
+  Widget? suffixIcon,
+}) {
+  final border = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: BorderSide.none,
+  );
+  return InputDecoration(
+    hintText: hintText,
+    labelText: labelText,
+    prefixIcon: prefixIcon,
+    suffixIcon: suffixIcon,
+    filled: true,
+    fillColor: Palette.raised,
+    hintStyle: const TextStyle(color: Palette.muted, fontSize: 12.5),
+    labelStyle: const TextStyle(color: Palette.muted, fontSize: 13),
+    border: border,
+    enabledBorder: border,
+    focusedBorder: border,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  );
+}
+
+/// Barre de titre commune a tous les ecrans.
+AppBar darkAppBar({required Widget title, List<Widget>? actions}) {
+  return AppBar(
+    title: title,
+    actions: actions,
+    backgroundColor: Palette.ink,
+    surfaceTintColor: Colors.transparent,
+    foregroundColor: Palette.text,
+    elevation: 0,
+    centerTitle: false,
+    titleTextStyle: const TextStyle(
+      color: Palette.text,
+      fontSize: 20,
+      fontWeight: FontWeight.w600,
+      letterSpacing: -0.4,
+    ),
+  );
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
@@ -44,31 +92,8 @@ class AnimeOrganizerApp extends StatelessWidget {
       title: 'Anime Organizer',
       debugShowCheckedModeBanner: false,
       theme: base.copyWith(
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Palette.ink,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: false,
-          titleTextStyle: TextStyle(
-            color: Palette.text,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.4,
-          ),
-        ),
         bottomSheetTheme:
             const BottomSheetThemeData(backgroundColor: Palette.surface),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Palette.raised,
-          hintStyle: const TextStyle(color: Palette.muted),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        ),
         textTheme: base.textTheme.apply(
           bodyColor: Palette.text,
           displayColor: Palette.text,

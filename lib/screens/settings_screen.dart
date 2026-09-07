@@ -33,7 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context, _) {
         final s = library.settings;
         return Scaffold(
-          appBar: AppBar(title: const Text('Reglages')),
+          appBar: darkAppBar(title: const Text('Reglages')),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
             children: [
@@ -198,10 +198,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: Palette.muted, fontSize: 13),
-        ),
+        decoration: fieldDecoration(labelText: label),
         child: DropdownButtonHideUnderline(
           child: DropdownButton<T>(
             value: value,
@@ -231,12 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: TextField(
         controller: controller,
         onChanged: onSubmit,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          labelStyle: const TextStyle(color: Palette.muted, fontSize: 13),
-          hintStyle: const TextStyle(color: Palette.muted, fontSize: 12),
-        ),
+        decoration: fieldDecoration(labelText: label, hintText: hint),
       ),
     );
   }

@@ -77,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextField(
               controller: controller,
               autofocus: true,
-              decoration: const InputDecoration(
+              decoration: fieldDecoration(
                 hintText: '/storage/emulated/0/Animes',
               ),
             ),
@@ -130,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
         return Scaffold(
-          appBar: AppBar(
+          appBar: darkAppBar(
             title: const Text('Anime Organizer'),
             actions: [
               IconButton(
@@ -202,7 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
           TextField(
             controller: _searchController,
             onChanged: (v) => setState(() => _query = v),
-            decoration: InputDecoration(
+            decoration: fieldDecoration(
               hintText: 'Chercher un titre ou un genre',
               prefixIcon: const Icon(Icons.search, color: Palette.muted),
               suffixIcon: _query.isEmpty
