@@ -43,10 +43,10 @@ class _DetailScreenState extends State<DetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text(
-                  'Traduction indisponible. Verifie le fournisseur dans les reglages.')),
+                  'Traduction indisponible. Vérifie le fournisseur dans les réglages.')),
         );
       }
-    }, 'La traduction a echoue.');
+    }, 'La traduction a échoué.');
   }
 
   Future<void> _searchAgain() async {
@@ -59,7 +59,7 @@ class _DetailScreenState extends State<DetailScreen> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: fieldDecoration(hintText: 'Titre a rechercher'),
+          decoration: fieldDecoration(hintText: 'Titre à rechercher'),
         ),
         actions: [
           TextButton(
@@ -83,7 +83,7 @@ class _DetailScreenState extends State<DetailScreen> {
 
     if (results.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucun resultat pour ce titre.')),
+        const SnackBar(content: Text('Aucun résultat pour ce titre.')),
       );
       return;
     }
@@ -152,7 +152,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 onPressed: () => library.toggleFavorite(anime),
                 icon: Icon(
                   anime.favorite ? Icons.favorite : Icons.favorite_border,
-                  color: anime.favorite ? Palette.shu : Palette.text,
+                  color: anime.favorite ? Palette.sakura : Palette.text,
                 ),
               ),
             ],
@@ -174,7 +174,7 @@ class _DetailScreenState extends State<DetailScreen> {
               const SizedBox(height: 18),
               Text(
                 synopsis == null || synopsis.isEmpty
-                    ? 'Pas encore de synopsis. Utilise « Corriger la fiche » pour retrouver la serie.'
+                    ? 'Pas encore de synopsis. Utilise « Corriger la fiche » pour retrouver la série.'
                     : synopsis,
                 style: const TextStyle(
                     height: 1.55, fontSize: 14.5, color: Palette.text),
@@ -195,7 +195,7 @@ class _DetailScreenState extends State<DetailScreen> {
                           setState(() => _showOriginal = !_showOriginal),
                       child: Text(
                         _showOriginal ? 'Voir la traduction' : 'Voir l\'original',
-                        style: const TextStyle(color: Palette.asagi),
+                        style: const TextStyle(color: Palette.kin),
                       ),
                     ),
                   OutlinedButton.icon(
@@ -214,7 +214,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       Container(width: 3, height: 16, color: Palette.shu),
                       const SizedBox(width: 8),
                       Text(
-                        'Episodes (${anime.episodes.length})',
+                        'Épisodes (${anime.episodes.length})',
                         style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w600),
                       ),
@@ -251,7 +251,7 @@ class _DetailScreenState extends State<DetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(radiusSm),
           child: SizedBox(
             width: 128,
             height: 186,
@@ -284,6 +284,15 @@ class _DetailScreenState extends State<DetailScreen> {
                   letterSpacing: -0.5,
                 ),
               ),
+              if (anime.nativeTitle != null && anime.nativeTitle!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    anime.nativeTitle!,
+                    style: const TextStyle(
+                        color: Palette.muted, fontSize: 12.5, height: 1.3),
+                  ),
+                ),
               const SizedBox(height: 6),
               if (anime.score != null)
                 Row(
@@ -325,11 +334,11 @@ class _DetailScreenState extends State<DetailScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0x736FBFB4)),
-                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: const Color(0x73D6B86A)),
+                  borderRadius: BorderRadius.circular(radiusSm),
                 ),
                 child: Text(g,
-                    style: const TextStyle(color: Palette.asagi, fontSize: 12)),
+                    style: const TextStyle(color: Palette.kin, fontSize: 12)),
               ))
           .toList(),
     );

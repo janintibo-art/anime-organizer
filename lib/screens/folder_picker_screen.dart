@@ -56,9 +56,9 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
     final roots = <_Root>[];
     if (Platform.isAndroid) {
       for (final candidate in const [
-        ['/storage/emulated/0', 'Memoire interne'],
-        ['/storage/emulated/0/Download', 'Telechargements'],
-        ['/storage/emulated/0/Movies', 'Videos'],
+        ['/storage/emulated/0', 'Mémoire interne'],
+        ['/storage/emulated/0/Download', 'Téléchargements'],
+        ['/storage/emulated/0/Movies', 'Vidéos'],
         ['/storage/emulated/0/DCIM', 'DCIM'],
       ]) {
         if (Directory(candidate[0]).existsSync()) {
@@ -129,7 +129,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
       setState(() {
         _current = path;
         _children = [];
-        _error = 'Dossier illisible. Verifie les autorisations de stockage.';
+        _error = 'Dossier illisible. Vérifie les autorisations de stockage.';
       });
     }
   }
@@ -185,7 +185,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
         child: Padding(
           padding: EdgeInsets.all(32),
           child: Text(
-            'Aucun emplacement accessible. Accorde l\'acces au stockage puis reviens ici.',
+            'Aucun emplacement accèssible. Accorde l\'accès au stockage puis reviens ici.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Palette.muted),
           ),
@@ -199,10 +199,10 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
         for (final r in _roots)
           ListTile(
             leading: Icon(Icons.storage,
-                color: r.readable ? Palette.asagi : Palette.muted),
+                color: r.readable ? Palette.kin : Palette.muted),
             title: Text(r.label),
             subtitle: Text(
-              r.readable ? r.path : '${r.path} — acces refuse pour l instant',
+              r.readable ? r.path : '${r.path} — accès refusé pour l'instant',
               style: TextStyle(
                 color: r.readable ? Palette.muted : Palette.shu,
                 fontSize: 11.5,
@@ -213,7 +213,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
         ListTile(
           leading: const Icon(Icons.keyboard, color: Palette.muted),
           title: const Text('Saisir un chemin'),
-          subtitle: const Text('Si un volume n apparait pas dans la liste',
+          subtitle: const Text('Si un volume n'apparaît pas dans la liste',
               style: TextStyle(color: Palette.muted, fontSize: 11.5)),
           onTap: _manualPath,
         ),
@@ -227,13 +227,13 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Palette.raised,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Acces a tous les fichiers desactive',
+            'Accès a tous les fichiers désactivé',
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           const SizedBox(height: 6),
@@ -310,7 +310,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
                     final d = _children[i];
                     return ListTile(
                       leading:
-                          const Icon(Icons.folder_outlined, color: Palette.asagi),
+                          const Icon(Icons.folder_outlined, color: Palette.kin),
                       title: Text(p.basename(d.path),
                           style: const TextStyle(fontSize: 14)),
                       trailing: const Icon(Icons.chevron_right,

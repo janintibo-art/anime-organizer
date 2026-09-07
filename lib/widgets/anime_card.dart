@@ -20,13 +20,13 @@ class AnimeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(radiusSm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(radiusSm),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -55,7 +55,7 @@ class AnimeCard extends StatelessWidget {
                             horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
                           color: Palette.shu,
-                          borderRadius: BorderRadius.circular(2),
+                          borderRadius: BorderRadius.circular(radiusSm),
                         ),
                         child: Text(
                           anime.score!.toStringAsFixed(1),
@@ -77,7 +77,7 @@ class AnimeCard extends StatelessWidget {
                       onPressed: onFavorite,
                       icon: Icon(
                         anime.favorite ? Icons.favorite : Icons.favorite_border,
-                        color: anime.favorite ? Palette.shu : Colors.white70,
+                        color: anime.favorite ? Palette.sakura : Colors.white70,
                       ),
                     ),
                   ),
@@ -113,13 +113,13 @@ class AnimeCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             anime.genres.isEmpty
-                ? (anime.metaFetched ? 'Genre inconnu' : 'Fiche non chargee')
+                ? (anime.metaFetched ? 'Genre inconnu' : 'Fiche non chargée')
                 : anime.genres.take(2).join(' · '),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 11.5,
-              color: anime.genres.isEmpty ? Palette.muted : Palette.asagi,
+              color: anime.genres.isEmpty ? Palette.muted : Palette.kin,
             ),
           ),
         ],

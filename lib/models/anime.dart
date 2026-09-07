@@ -21,6 +21,7 @@ class Anime {
 
   /// Titre renvoye par l'API.
   String? apiTitle;
+  String? nativeTitle;
 
   int? malId;
   String? imageUrl;
@@ -38,6 +39,7 @@ class Anime {
 
   bool metaFetched;
   bool metaFailed;
+  int metaFailCount;
   bool favorite;
 
   List<Episode> episodes;
@@ -46,6 +48,7 @@ class Anime {
     required this.id,
     required this.folderTitle,
     this.apiTitle,
+    this.nativeTitle,
     this.malId,
     this.imageUrl,
     this.synopsisEn,
@@ -61,6 +64,7 @@ class Anime {
     this.episodesCount,
     this.metaFetched = false,
     this.metaFailed = false,
+    this.metaFailCount = 0,
     this.favorite = false,
     List<Episode>? episodes,
   })  : genres = genres ?? <String>[],
@@ -80,6 +84,7 @@ class Anime {
         'id': id,
         'folderTitle': folderTitle,
         'apiTitle': apiTitle,
+        'nativeTitle': nativeTitle,
         'malId': malId,
         'imageUrl': imageUrl,
         'synopsisEn': synopsisEn,
@@ -95,6 +100,7 @@ class Anime {
         'episodesCount': episodesCount,
         'metaFetched': metaFetched,
         'metaFailed': metaFailed,
+        'metaFailCount': metaFailCount,
         'favorite': favorite,
         'episodes': episodes.map((e) => e.toJson()).toList(),
       };
@@ -103,6 +109,7 @@ class Anime {
         id: j['id'] as String,
         folderTitle: j['folderTitle'] as String? ?? '',
         apiTitle: j['apiTitle'] as String?,
+        nativeTitle: j['nativeTitle'] as String?,
         malId: j['malId'] as int?,
         imageUrl: j['imageUrl'] as String?,
         synopsisEn: j['synopsisEn'] as String?,
@@ -118,6 +125,7 @@ class Anime {
         episodesCount: j['episodesCount'] as int?,
         metaFetched: j['metaFetched'] as bool? ?? false,
         metaFailed: j['metaFailed'] as bool? ?? false,
+        metaFailCount: j['metaFailCount'] as int? ?? 0,
         favorite: j['favorite'] as bool? ?? false,
         episodes: (j['episodes'] as List?)
                 ?.map((e) => Episode.fromJson(Map<String, dynamic>.from(e as Map)))

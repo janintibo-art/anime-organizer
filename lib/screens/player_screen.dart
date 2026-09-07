@@ -68,13 +68,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
         actions: [
           if (widget.episodes.length > 1)
             IconButton(
-              tooltip: 'Episode precedent',
+              tooltip: 'Épisode precedent',
               onPressed: () => _player.previous(),
               icon: const Icon(Icons.skip_previous),
             ),
           if (widget.episodes.length > 1)
             IconButton(
-              tooltip: 'Episode suivant',
+              tooltip: 'Épisode suivant',
               onPressed: () => _player.next(),
               icon: const Icon(Icons.skip_next),
             ),
@@ -107,7 +107,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         decoration: BoxDecoration(
                           color: selected ? Palette.shu : Palette.raised,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(radiusMd),
                         ),
                         child: Text(
                           '${i + 1}',

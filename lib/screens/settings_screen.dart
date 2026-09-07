@@ -33,22 +33,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context, _) {
         final s = library.settings;
         return Scaffold(
-          appBar: darkAppBar(title: const Text('Reglages')),
+          appBar: darkAppBar(title: const Text('Réglages')),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
             children: [
-              _section('Dossiers surveilles'),
+              _section('Dossiers surveillés'),
               if (library.folders.isEmpty)
                 const Text('Aucun dossier pour l\'instant.',
                     style: TextStyle(color: Palette.muted, fontSize: 13)),
               for (final f in library.folders)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.folder_outlined, color: Palette.asagi),
+                  leading: const Icon(Icons.folder_outlined, color: Palette.kin),
                   title: Text(f, style: const TextStyle(fontSize: 13)),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline, color: Palette.muted),
-                    onPressed: () => library.removeFolder(f),
+                    onPressed: () => _confirmRemoveFolder(f),
                   ),
                 ),
 
@@ -59,9 +59,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: s.translationProvider,
                 items: const {
                   'none': 'Aucune traduction',
-                  'mymemory': 'MyMemory (gratuit, sans cle)',
+                  'mymemory': 'MyMemory (gratuit, sans clé)',
                   'libretranslate': 'LibreTranslate',
-                  'deepl': 'DeepL (cle requise)',
+                  'deepl': 'DeepL (clé requise)',
                 },
                 onChanged: (v) =>
                     library.updateSettings((s) => s.translationProvider = v),
@@ -70,12 +70,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: 'Langue cible',
                 value: s.targetLang,
                 items: const {
-                  'fr': 'Francais',
+                  'fr': 'Français',
                   'es': 'Espagnol',
                   'de': 'Allemand',
                   'it': 'Italien',
                   'pt': 'Portugais',
-                  'nl': 'Neerlandais',
+                  'nl': 'Néerlandais',
                 },
                 onChanged: (v) => library.updateSettings((s) => s.targetLang = v),
               ),
@@ -83,7 +83,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _field(
                   controller: _email,
                   label: 'Email (facultatif)',
-                  hint: 'Passe le quota de 5 000 a 50 000 caracteres par jour',
+                  hint: 'Passe le quota de 5 000 a 50 000 caractères par jour',
                   onSubmit: (v) => library.updateSettings((s) => s.email = v),
                 ),
               if (s.translationProvider == 'libretranslate')
@@ -97,7 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   s.translationProvider == 'deepl')
                 _field(
                   controller: _key,
-                  label: 'Cle API',
+                  label: 'Clé API',
                   hint: 'Collee depuis ton compte',
                   onSubmit: (v) => library.updateSettings((s) => s.apiKey = v),
                 ),
@@ -120,14 +120,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 activeColor: Palette.shu,
                 value: s.scanOnStart,
                 onChanged: (v) => library.updateSettings((s) => s.scanOnStart = v),
-                title: const Text('Scanner a chaque ouverture',
+                title: const Text('Scanner à chaque ouverture',
                     style: TextStyle(fontSize: 14)),
                 subtitle: const Text(
-                    'Detecte les nouveaux animes. Les fiches deja trouvees sont conservees.',
+                    'Détecte les nouveaux animes. Les fiches déjà trouvées sont conservées.',
                     style: TextStyle(color: Palette.muted, fontSize: 12)),
               ),
               _dropdown<String>(
-                label: 'Source des metadonnees',
+                label: 'Source des métadonnées',
                 value: s.metaSource,
                 items: const {
                   'auto': 'AniList, puis MyAnimeList si besoin',
@@ -143,7 +143,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: (v) => library.updateSettings((s) => s.autoFetch = v),
                 title: const Text('Chercher images et descriptions',
                     style: TextStyle(fontSize: 14)),
-                subtitle: const Text('Images, synopsis, genres, notes et studios.',
+                subtitle: const Text('Images, synopsis, genres, notés et studios.',
                     style: TextStyle(color: Palette.muted, fontSize: 12)),
               ),
               const SizedBox(height: 8),
@@ -154,7 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   OutlinedButton.icon(
                     onPressed: library.busy ? null : () => library.retryFailed(),
                     icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Completer les fiches manquantes'),
+                    label: const Text('Compléter les fiches manquantes'),
                   ),
                   OutlinedButton.icon(
                     onPressed: library.busy ? null : () => library.translateAll(),
@@ -164,14 +164,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   OutlinedButton.icon(
                     onPressed: library.busy ? null : _confirmClear,
                     icon: const Icon(Icons.delete_sweep_outlined, size: 18),
-                    label: const Text('Vider la bibliotheque'),
+                    label: const Text('Vider la bibliothèque'),
                   ),
                 ],
               ),
               const SizedBox(height: 28),
               const Text(
-                'Les videos restent sur ton disque : l\'application ne fait que les lister et les lire. '
-                'Seuls les titres sont envoyes aux services de metadonnees et de traduction.',
+                'Les vidéos restent sur ton disque : l\'application ne fait que les lister et les lire. '
+                'Seuls les titres sont envoyés aux services de métadonnées et de traduction.',
                 style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.5),
               ),
             ],
@@ -181,14 +181,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _confirmRemoveFolder(String folder) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Palette.surface,
+        title: const Text('Retirer ce dossier ?'),
+        content: Text(
+          'Les séries de $folder disparaîtront de la bibliothèque. '
+          'Aucun fichier video n'est supprimé du disque.',
+          style: const TextStyle(height: 1.4),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Palette.shu),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Retirer'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await library.removeFolder(folder);
+  }
+
   Future<void> _confirmClear() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Palette.surface,
-        title: const Text('Vider la bibliotheque ?'),
+        title: const Text('Vider la bibliothèque ?'),
         content: const Text(
-            'Les fiches et les favoris seront effaces. Tes fichiers video ne sont pas touches.'),
+            'Les fiches et les favoris seront effacés. Tes fichiers video ne sont pas touchés.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),

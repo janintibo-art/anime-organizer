@@ -40,12 +40,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final messages = <String>[];
     if (library.lastNewCount > 0) {
       messages.add(library.lastNewCount == 1
-          ? '1 nouvelle serie ajoutee'
-          : '${library.lastNewCount} nouvelles series ajoutees');
+          ? '1 nouvelle série ajoutée'
+          : '${library.lastNewCount} nouvelles séries ajoutées');
     }
     if (library.unreachableFolders.isNotEmpty) {
       messages.add(
-          '${library.unreachableFolders.length} dossier(s) injoignable(s), fiches conservees');
+          '${library.unreachableFolders.length} dossier(s) injoignable(s), fiches conservées');
     }
     if (messages.isEmpty) return;
     ScaffoldMessenger.of(context)
@@ -94,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Utile sur Android quand le selecteur de dossiers ne renvoie pas un chemin lisible.',
+              'Utile sur Android quand le sélecteur de dossiers ne renvoie pas un chemin lisible.',
               style: TextStyle(color: Palette.muted, fontSize: 12.5),
             ),
             const SizedBox(height: 12),
@@ -161,13 +161,17 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Row(
                   children: [
-                    Container(width: 3, height: 18, color: Palette.shu),
-                    const SizedBox(width: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(radiusSm),
+                      child: Image.asset('assets/icon.png',
+                          width: 24, height: 24, fit: BoxFit.cover),
+                    ),
+                    const SizedBox(width: 9),
                     const Text('Anime Organizer'),
                   ],
                 ),
                 const Padding(
-                  padding: EdgeInsets.only(left: 11, top: 1),
+                  padding: EdgeInsets.only(left: 33, top: 1),
                   child: Text(
                     'アニメ ライブラリ',
                     style: TextStyle(
@@ -187,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: const Icon(Icons.refresh),
               ),
               IconButton(
-                tooltip: 'Reglages',
+                tooltip: 'Réglages',
                 onPressed: _openSettings,
                 icon: const Icon(Icons.tune),
               ),
@@ -228,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: const TextStyle(color: Palette.muted, fontSize: 12)),
           const SizedBox(height: 6),
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(radiusMd),
             child: LinearProgressIndicator(
               value: library.progress > 0 ? library.progress : null,
               minHeight: 4,
@@ -311,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: selected ? Palette.shu : Colors.transparent,
           border: Border.all(color: selected ? Palette.shu : Palette.line),
-          borderRadius: BorderRadius.circular(3),
+          borderRadius: BorderRadius.circular(radiusSm),
         ),
         child: Text(
           label,
@@ -329,10 +333,10 @@ class _HomeScreenState extends State<HomeScreen> {
     const labels = {
       'alpha': 'A → Z',
       'genre': 'Par genre',
-      'score': 'Mieux notes',
+      'score': 'Mieux notés',
       'popularity': 'Les plus connus',
-      'year': 'Plus recents',
-      'episodes': 'Plus d\'episodes',
+      'year': 'Plus récents',
+      'episodes': 'Plus d\'épisodes',
     };
     return PopupMenuButton<String>(
       color: Palette.surface,
@@ -345,7 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: Palette.raised,
           border: Border.all(color: Palette.line),
-          borderRadius: BorderRadius.circular(3),
+          borderRadius: BorderRadius.circular(radiusSm),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -389,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _noResult() {
     return const Center(
       child: Text(
-        'Aucune serie ne correspond a ce filtre.',
+        'Aucune série ne correspond a ce filtre.',
         style: TextStyle(color: Palette.muted),
       ),
     );
@@ -405,12 +409,12 @@ class _HomeScreenState extends State<HomeScreen> {
             Image.asset('assets/logo.png', width: 240, fit: BoxFit.contain),
             const SizedBox(height: 24),
             const Text(
-              'Ta bibliotheque est vide',
+              'Ta bibliothèque est vide',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Choisis un dossier contenant tes videos. Chaque sous-dossier devient une serie, '
+              'Choisis un dossier contenant tes vidéos. Chaque sous-dossier devient une série, '
               'et les fiches sont completees automatiquement.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Palette.muted, height: 1.4, fontSize: 13.5),
@@ -424,8 +428,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             TextButton(
               onPressed: _addFolderManually,
-              child: const Text('Saisir un chemin a la main',
-                  style: TextStyle(color: Palette.asagi)),
+              child: const Text('Saisir un chemin à la main',
+                  style: TextStyle(color: Palette.kin)),
             ),
           ],
         ),

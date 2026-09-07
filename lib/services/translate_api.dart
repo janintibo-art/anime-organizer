@@ -38,7 +38,7 @@ class TranslateApi {
         result = await _libre(input, sourceLang, targetLang, endpoint, apiKey);
         break;
       case 'deepl':
-        result = await _deepl(input, targetLang, apiKey);
+        result = await _deepl(input, sourceLang, targetLang, apiKey);
         break;
     }
     if (result != null && result.trim().isNotEmpty) _cache[key] = result;
@@ -125,7 +125,8 @@ class TranslateApi {
     }
   }
 
-  static Future<String?> _deepl(String text, String to, String? apiKey) async {
+  static Future<String?> _deepl(
+      String text, String from, String to, String? apiKey) async {
     if (apiKey == null || apiKey.isEmpty) return null;
     final host =
         apiKey.endsWith(':fx') ? 'api-free.deepl.com' : 'api.deepl.com';
@@ -140,7 +141,7 @@ class TranslateApi {
             body: {
               'text': text,
               'target_lang': to.toUpperCase(),
-              'source_lang': 'EN',
+              'source_lang': from.toUpperCase(),
             },
           )
           .timeout(const Duration(seconds: 30));

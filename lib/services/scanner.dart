@@ -23,7 +23,7 @@ class Scanner {
   );
   static final RegExp _episodeMarks = RegExp(
     r'\b(s\d{1,2} ?e\d{1,3}|saison ?\d{1,2}|season ?\d{1,2}|'
-    r'episode ?\d{1,3}|ep ?\d{1,3}|vol ?\d{1,3})\b',
+    r'épisode ?\d{1,3}|ep ?\d{1,3}|vol ?\d{1,3})\b',
     caseSensitive: false,
   );
   static final RegExp _trailingNumber = RegExp(r'[\s\-–—]+\d{1,3}\s*$');

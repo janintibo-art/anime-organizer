@@ -81,11 +81,25 @@ class LibraryController extends ChangeNotifier {
     return _file!;
   }
 
+  /// Message affiche si la derniere sauvegarde a echoue.
+  String? saveError;
+
   Future<void> load() async {
+    final f = await _storeFile();
+    final backup = File('${f.path}.bak');
+    for (final candidate in [f, backup]) {
+      if (!candidate.existsSync()) continue;
+      if (await _loadFrom(candidate)) {
+        notifyListeners();
+        return;
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<bool> _loadFrom(File file) async {
     try {
-      final f = await _storeFile();
-      if (!f.existsSync()) return;
-      final data = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+      final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       folders = (data['folders'] as List?)?.map((e) => e.toString()).toList() ?? [];
       settings = AppSettings.fromJson(
           Map<String, dynamic>.from(data['settings'] as Map? ?? {}));
@@ -93,21 +107,37 @@ class LibraryController extends ChangeNotifier {
               ?.map((e) => Anime.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??
           [];
+      return true;
     } catch (_) {
-      // Bibliotheque illisible : on repart sur une base vide.
+      // Fichier illisible : on tentera la copie de secours.
+      return false;
     }
-    notifyListeners();
   }
 
+  /// Ecriture atomique : on ecrit un fichier temporaire, on archive la version
+  /// precedente, puis on renomme. Une coupure ne peut pas laisser un JSON
+  /// tronque a la place de la bibliotheque.
   Future<void> save() async {
     try {
       final f = await _storeFile();
-      await f.writeAsString(jsonEncode({
+      final tmp = File('${f.path}.tmp');
+      await tmp.writeAsString(jsonEncode({
         'folders': folders,
         'settings': settings.toJson(),
         'animes': animes.map((a) => a.toJson()).toList(),
-      }));
-    } catch (_) {}
+      }), flush: true);
+
+      if (f.existsSync()) {
+        try {
+          await f.copy('${f.path}.bak');
+        } catch (_) {}
+      }
+      await tmp.rename(f.path);
+      saveError = null;
+    } catch (e) {
+      saveError = 'La bibliothèque n'a pas pu etre enregistree.';
+      notifyListeners();
+    }
   }
 
   /// Rafraichit les ecrans qui ecoutent le controleur.
@@ -182,7 +212,9 @@ class LibraryController extends ChangeNotifier {
       notifyListeners();
 
       if (fetchMetadata && settings.autoFetch) {
-        final todo = animes.where((a) => !a.metaFetched && !a.metaFailed).toList();
+        final todo = animes
+            .where((a) => !a.metaFetched && a.metaFailCount < 3)
+            .toList();
         for (var i = 0; i < todo.length; i++) {
           _report('Fiche ${i + 1}/${todo.length} : ${todo[i].folderTitle}',
               (i + 1) / todo.length);
@@ -227,7 +259,10 @@ class LibraryController extends ChangeNotifier {
       }
     }
     if (meta == null) {
-      anime.metaFailed = true;
+      // Une panne reseau ne doit pas condamner la fiche : on retentera
+      // aux prochains demarrages, jusqu'a trois fois.
+      anime.metaFailCount++;
+      anime.metaFailed = anime.metaFailCount >= 3;
     } else {
       applyMeta(anime, meta);
       if (settings.autoTranslate && settings.translationProvider != 'none') {
@@ -242,6 +277,7 @@ class LibraryController extends ChangeNotifier {
     anime.malId = meta.sourceId;
     anime.metaSource = meta.source;
     anime.apiTitle = meta.title;
+    anime.nativeTitle = meta.titleNative;
     anime.imageUrl = meta.imageUrl;
     anime.synopsisEn = meta.synopsis;
     anime.synopsisTranslated = null;
@@ -306,6 +342,7 @@ class LibraryController extends ChangeNotifier {
     try {
       for (var i = 0; i < todo.length; i++) {
         todo[i].metaFailed = false;
+        todo[i].metaFailCount = 0;
         _report('Fiche ${i + 1}/${todo.length}', (i + 1) / todo.length);
         await fetchOne(todo[i], persist: false);
       }

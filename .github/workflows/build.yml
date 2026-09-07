@@ -93,8 +93,8 @@ jobs:
       - name: Recuperer les dependances
         run: flutter pub get
 
-      - name: Generer les icones
-        run: dart run flutter_launcher_icons
+      - name: Generer l'icone Windows
+        run: dart run flutter_launcher_icons -f icons_windows.yaml
 
       - name: Compiler l'application
         env:

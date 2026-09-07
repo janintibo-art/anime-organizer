@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 
-import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/library_controller.dart';
 
-/// Palette inspiree des couleurs traditionnelles japonaises :
-/// nuit d'encre bleutee, vermillon de sceau (shu), bleu-vert asagi,
-/// or (kin) et blanc casse facon papier (kinari).
+/// Palette calee sur le logo : noir d'encre chaud, rouge de sceau,
+/// or et ivoire, avec un rose sakura utilise avec parcimonie.
 class Palette {
-  static const ink = Color(0xFF0A0C12);
-  static const surface = Color(0xFF131722);
-  static const raised = Color(0xFF1C2130);
-  static const line = Color(0xFF2A3142);
-  static const shu = Color(0xFFE0473A);
-  static const asagi = Color(0xFF6FBFB4);
-  static const kin = Color(0xFFD9A93E);
-  static const text = Color(0xFFF0EADF);
-  static const muted = Color(0xFF888FA3);
+  static const ink = Color(0xFF0D0B0B);
+  static const surface = Color(0xFF181311);
+  static const raised = Color(0xFF221A17);
+  static const line = Color(0xFF352724);
+  static const shu = Color(0xFFBF2F25);
+  static const kin = Color(0xFFD6B86A);
+  static const sakura = Color(0xFFE3A2AB);
+  static const text = Color(0xFFF4E7D3);
+  static const muted = Color(0xFF9C8A80);
 }
+
+/// Arrondis : deux valeurs seulement, pour que tout l'ecran respire pareil.
+const double radiusSm = 4; // puces, badges, champs
+const double radiusMd = 8; // affiches, cartes, boites de dialogue
 
 /// Decoration commune des champs de saisie.
 /// Definie ici plutot que dans le theme : l'API du theme change souvent
@@ -29,7 +32,7 @@ InputDecoration fieldDecoration({
   Widget? suffixIcon,
 }) {
   final border = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(4),
+    borderRadius: BorderRadius.circular(radiusSm),
     borderSide: const BorderSide(color: Palette.line),
   );
   return InputDecoration(
@@ -85,7 +88,7 @@ class AnimeOrganizerApp extends StatelessWidget {
       scaffoldBackgroundColor: Palette.ink,
       colorScheme: const ColorScheme.dark(
         primary: Palette.shu,
-        secondary: Palette.asagi,
+        secondary: Palette.kin,
         surface: Palette.surface,
         onSurface: Palette.text,
       ),
@@ -106,7 +109,7 @@ class AnimeOrganizerApp extends StatelessWidget {
           contentTextStyle: TextStyle(color: Palette.text),
         ),
       ),
-      home: const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }

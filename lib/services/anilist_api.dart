@@ -85,10 +85,10 @@ query($search:String,$perPage:Int){
   }
 
   static const Map<String, String> _statusLabels = {
-    'FINISHED': 'Termine',
+    'FINISHED': 'Terminé',
     'RELEASING': 'En cours',
-    'NOT_YET_RELEASED': 'A venir',
-    'CANCELLED': 'Annule',
+    'NOT_YET_RELEASED': 'À venir',
+    'CANCELLED': 'Annulé',
     'HIATUS': 'En pause',
   };
 
