@@ -152,7 +152,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 onPressed: () => library.toggleFavorite(anime),
                 icon: Icon(
                   anime.favorite ? Icons.favorite : Icons.favorite_border,
-                  color: anime.favorite ? Palette.sakura : Palette.text,
+                  color: anime.favorite ? Palette.shu : Palette.text,
                 ),
               ),
             ],
@@ -166,7 +166,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   child: LinearProgressIndicator(
                       minHeight: 3,
                       backgroundColor: Palette.raised,
-                      color: Palette.sakura),
+                      color: Palette.shu),
                 ),
               _header(),
               const SizedBox(height: 18),
@@ -195,7 +195,7 @@ class _DetailScreenState extends State<DetailScreen> {
                           setState(() => _showOriginal = !_showOriginal),
                       child: Text(
                         _showOriginal ? 'Voir la traduction' : 'Voir l\'original',
-                        style: const TextStyle(color: Palette.jade),
+                        style: const TextStyle(color: Palette.asagi),
                       ),
                     ),
                   OutlinedButton.icon(
@@ -209,10 +209,16 @@ class _DetailScreenState extends State<DetailScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Episodes (${anime.episodes.length})',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600),
+                  Row(
+                    children: [
+                      Container(width: 3, height: 16, color: Palette.shu),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Episodes (${anime.episodes.length})',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ),
                   if (anime.episodes.isNotEmpty)
                     TextButton.icon(
@@ -245,7 +251,7 @@ class _DetailScreenState extends State<DetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(4),
           child: SizedBox(
             width: 128,
             height: 186,
@@ -282,12 +288,12 @@ class _DetailScreenState extends State<DetailScreen> {
               if (anime.score != null)
                 Row(
                   children: [
-                    const Icon(Icons.star_rounded, size: 18, color: Palette.gold),
+                    const Icon(Icons.star_rounded, size: 18, color: Palette.kin),
                     const SizedBox(width: 4),
                     Text(
                       anime.score!.toStringAsFixed(2),
                       style: const TextStyle(
-                          color: Palette.gold, fontWeight: FontWeight.w600),
+                          color: Palette.kin, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -319,11 +325,11 @@ class _DetailScreenState extends State<DetailScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Palette.raised,
-                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0x736FBFB4)),
+                  borderRadius: BorderRadius.circular(3),
                 ),
                 child: Text(g,
-                    style: const TextStyle(color: Palette.jade, fontSize: 12)),
+                    style: const TextStyle(color: Palette.asagi, fontSize: 12)),
               ))
           .toList(),
     );
@@ -350,7 +356,7 @@ class _DetailScreenState extends State<DetailScreen> {
       ),
       subtitle: missing
           ? const Text('Fichier introuvable',
-              style: TextStyle(fontSize: 11.5, color: Palette.sakura))
+              style: TextStyle(fontSize: 11.5, color: Palette.shu))
           : null,
       trailing: const Icon(Icons.play_circle_outline, color: Palette.muted),
       onTap: missing ? null : () => _play(index),

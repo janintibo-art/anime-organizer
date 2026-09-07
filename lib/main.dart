@@ -4,16 +4,19 @@ import 'package:media_kit/media_kit.dart';
 import 'screens/home_screen.dart';
 import 'services/library_controller.dart';
 
-/// Palette : nuit d'encre, accent sakura, jade pour les genres, or pour les notes.
+/// Palette inspiree des couleurs traditionnelles japonaises :
+/// nuit d'encre bleutee, vermillon de sceau (shu), bleu-vert asagi,
+/// or (kin) et blanc casse facon papier (kinari).
 class Palette {
-  static const ink = Color(0xFF0D0A14);
-  static const surface = Color(0xFF171223);
-  static const raised = Color(0xFF221A33);
-  static const sakura = Color(0xFFFF4D7E);
-  static const jade = Color(0xFF57E1B6);
-  static const gold = Color(0xFFF2C14E);
-  static const text = Color(0xFFECE7F5);
-  static const muted = Color(0xFF9A90B3);
+  static const ink = Color(0xFF0A0C12);
+  static const surface = Color(0xFF131722);
+  static const raised = Color(0xFF1C2130);
+  static const line = Color(0xFF2A3142);
+  static const shu = Color(0xFFE0473A);
+  static const asagi = Color(0xFF6FBFB4);
+  static const kin = Color(0xFFD9A93E);
+  static const text = Color(0xFFF0EADF);
+  static const muted = Color(0xFF888FA3);
 }
 
 /// Decoration commune des champs de saisie.
@@ -26,8 +29,8 @@ InputDecoration fieldDecoration({
   Widget? suffixIcon,
 }) {
   final border = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(12),
-    borderSide: BorderSide.none,
+    borderRadius: BorderRadius.circular(4),
+    borderSide: const BorderSide(color: Palette.line),
   );
   return InputDecoration(
     hintText: hintText,
@@ -35,7 +38,7 @@ InputDecoration fieldDecoration({
     prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
     filled: true,
-    fillColor: Palette.raised,
+    fillColor: Palette.surface,
     hintStyle: const TextStyle(color: Palette.muted, fontSize: 12.5),
     labelStyle: const TextStyle(color: Palette.muted, fontSize: 13),
     border: border,
@@ -81,8 +84,8 @@ class AnimeOrganizerApp extends StatelessWidget {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: Palette.ink,
       colorScheme: const ColorScheme.dark(
-        primary: Palette.sakura,
-        secondary: Palette.jade,
+        primary: Palette.shu,
+        secondary: Palette.asagi,
         surface: Palette.surface,
         onSurface: Palette.text,
       ),

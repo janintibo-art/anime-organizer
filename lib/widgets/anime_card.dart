@@ -20,13 +20,13 @@ class AnimeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(4),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -41,7 +41,7 @@ class AnimeCard extends StatelessWidget {
                         gradient: LinearGradient(
                           begin: Alignment.bottomCenter,
                           end: Alignment.topCenter,
-                          colors: [Color(0xCC0D0A14), Colors.transparent],
+                          colors: [Color(0xD90A0C12), Colors.transparent],
                         ),
                       ),
                     ),
@@ -52,17 +52,18 @@ class AnimeCard extends StatelessWidget {
                       left: 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                            horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xE60D0A14),
-                          borderRadius: BorderRadius.circular(20),
+                          color: Palette.shu,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                         child: Text(
                           anime.score!.toStringAsFixed(1),
                           style: const TextStyle(
-                            color: Palette.gold,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
                           ),
                         ),
                       ),
@@ -76,7 +77,7 @@ class AnimeCard extends StatelessWidget {
                       onPressed: onFavorite,
                       icon: Icon(
                         anime.favorite ? Icons.favorite : Icons.favorite_border,
-                        color: anime.favorite ? Palette.sakura : Colors.white70,
+                        color: anime.favorite ? Palette.shu : Colors.white70,
                       ),
                     ),
                   ),
@@ -118,7 +119,7 @@ class AnimeCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 11.5,
-              color: anime.genres.isEmpty ? Palette.muted : Palette.jade,
+              color: anime.genres.isEmpty ? Palette.muted : Palette.asagi,
             ),
           ),
         ],
@@ -129,9 +130,12 @@ class AnimeCard extends StatelessWidget {
   Widget _poster() {
     if (anime.imageUrl == null || anime.imageUrl!.isEmpty) {
       return Container(
-        color: Palette.raised,
+        decoration: BoxDecoration(
+          color: Palette.surface,
+          border: Border.all(color: Palette.line),
+        ),
         alignment: Alignment.center,
-        child: const Icon(Icons.movie_outlined, color: Palette.muted, size: 34),
+        child: const Icon(Icons.movie_outlined, color: Palette.muted, size: 32),
       );
     }
     return CachedNetworkImage(

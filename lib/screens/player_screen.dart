@@ -106,7 +106,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         alignment: Alignment.center,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         decoration: BoxDecoration(
-                          color: selected ? Palette.sakura : Palette.raised,
+                          color: selected ? Palette.shu : Palette.raised,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(

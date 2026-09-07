@@ -170,7 +170,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
           ? null
           : FloatingActionButton.extended(
               onPressed: () => Navigator.pop(context, current),
-              backgroundColor: Palette.sakura,
+              backgroundColor: Palette.shu,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.check),
               label: const Text('Choisir ce dossier'),
@@ -199,12 +199,12 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
         for (final r in _roots)
           ListTile(
             leading: Icon(Icons.storage,
-                color: r.readable ? Palette.jade : Palette.muted),
+                color: r.readable ? Palette.asagi : Palette.muted),
             title: Text(r.label),
             subtitle: Text(
               r.readable ? r.path : '${r.path} — acces refuse pour l instant',
               style: TextStyle(
-                color: r.readable ? Palette.muted : Palette.sakura,
+                color: r.readable ? Palette.muted : Palette.shu,
                 fontSize: 11.5,
               ),
             ),
@@ -244,7 +244,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
           const SizedBox(height: 10),
           FilledButton(
             onPressed: _requestAllFiles,
-            style: FilledButton.styleFrom(backgroundColor: Palette.sakura),
+            style: FilledButton.styleFrom(backgroundColor: Palette.shu),
             child: const Text('Autoriser'),
           ),
         ],
@@ -295,7 +295,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(_error!,
-                style: const TextStyle(color: Palette.sakura, fontSize: 13)),
+                style: const TextStyle(color: Palette.shu, fontSize: 13)),
           ),
         Expanded(
           child: _children.isEmpty
@@ -310,7 +310,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
                     final d = _children[i];
                     return ListTile(
                       leading:
-                          const Icon(Icons.folder_outlined, color: Palette.jade),
+                          const Icon(Icons.folder_outlined, color: Palette.asagi),
                       title: Text(p.basename(d.path),
                           style: const TextStyle(fontSize: 14)),
                       trailing: const Icon(Icons.chevron_right,

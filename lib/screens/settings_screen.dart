@@ -44,7 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               for (final f in library.folders)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.folder_outlined, color: Palette.jade),
+                  leading: const Icon(Icons.folder_outlined, color: Palette.asagi),
                   title: Text(f, style: const TextStyle(fontSize: 13)),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline, color: Palette.muted),
@@ -103,7 +103,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                activeColor: Palette.sakura,
+                activeColor: Palette.shu,
                 value: s.autoTranslate,
                 onChanged: (v) => library.updateSettings((s) => s.autoTranslate = v),
                 title: const Text('Traduire pendant le scan',
@@ -117,7 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _section('Fiches'),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                activeColor: Palette.sakura,
+                activeColor: Palette.shu,
                 value: s.scanOnStart,
                 onChanged: (v) => library.updateSettings((s) => s.scanOnStart = v),
                 title: const Text('Scanner a chaque ouverture',
@@ -138,7 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                activeColor: Palette.sakura,
+                activeColor: Palette.shu,
                 value: s.autoFetch,
                 onChanged: (v) => library.updateSettings((s) => s.autoFetch = v),
                 title: const Text('Chercher images et descriptions',
@@ -194,7 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Annuler')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Palette.sakura),
+            style: FilledButton.styleFrom(backgroundColor: Palette.shu),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Vider'),
           ),
@@ -206,8 +206,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _section(String title) => Padding(
         padding: const EdgeInsets.only(bottom: 10, top: 6),
-        child: Text(title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        child: Row(
+          children: [
+            Container(width: 3, height: 16, color: Palette.shu),
+            const SizedBox(width: 8),
+            Text(title,
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          ],
+        ),
       );
 
   Widget _dropdown<T>({

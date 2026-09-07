@@ -155,7 +155,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           appBar: darkAppBar(
-            title: const Text('Anime Organizer'),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(width: 3, height: 18, color: Palette.shu),
+                    const SizedBox(width: 8),
+                    const Text('Anime Organizer'),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(left: 11, top: 1),
+                  child: Text(
+                    'アニメ ライブラリ',
+                    style: TextStyle(
+                      color: Palette.muted,
+                      fontSize: 10.5,
+                      letterSpacing: 1.5,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             actions: [
               IconButton(
                 tooltip: 'Relancer le scan',
@@ -171,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: library.busy ? null : _addFolder,
-            backgroundColor: Palette.sakura,
+            backgroundColor: Palette.shu,
             foregroundColor: Colors.white,
             icon: const Icon(Icons.create_new_folder_outlined),
             label: const Text('Ajouter un dossier'),
@@ -209,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
               value: library.progress > 0 ? library.progress : null,
               minHeight: 4,
               backgroundColor: Palette.raised,
-              color: Palette.sakura,
+              color: Palette.shu,
             ),
           ),
         ],
@@ -285,8 +309,9 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? Palette.sakura : Palette.raised,
-          borderRadius: BorderRadius.circular(20),
+          color: selected ? Palette.shu : Colors.transparent,
+          border: Border.all(color: selected ? Palette.shu : Palette.line),
+          borderRadius: BorderRadius.circular(3),
         ),
         child: Text(
           label,
@@ -319,7 +344,8 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           color: Palette.raised,
-          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Palette.line),
+          borderRadius: BorderRadius.circular(3),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -376,8 +402,8 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.folder_open, size: 48, color: Palette.raised),
-            const SizedBox(height: 16),
+            Image.asset('assets/logo.png', width: 240, fit: BoxFit.contain),
+            const SizedBox(height: 24),
             const Text(
               'Ta bibliotheque est vide',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
@@ -392,14 +418,14 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: _addFolder,
-              style: FilledButton.styleFrom(backgroundColor: Palette.sakura),
+              style: FilledButton.styleFrom(backgroundColor: Palette.shu),
               icon: const Icon(Icons.create_new_folder_outlined),
               label: const Text('Choisir un dossier'),
             ),
             TextButton(
               onPressed: _addFolderManually,
               child: const Text('Saisir un chemin a la main',
-                  style: TextStyle(color: Palette.jade)),
+                  style: TextStyle(color: Palette.asagi)),
             ),
           ],
         ),

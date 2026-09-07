@@ -44,6 +44,9 @@ jobs:
       - name: Recuperer les dependances
         run: flutter pub get
 
+      - name: Generer les icones
+        run: dart run flutter_launcher_icons
+
       - name: Compiler l'APK
         run: flutter build apk --release
 
@@ -80,11 +83,18 @@ jobs:
           cp /tmp/pubspec.yaml pubspec.yaml
           rm -rf lib && cp -r /tmp/lib_backup lib
 
+      - name: Nom de la fenetre
+        shell: bash
+        run: sed -i 's/L"anime_organizer"/L"Anime Organizer"/' windows/runner/main.cpp
+
       - name: Activer la cible Windows
         run: flutter config --enable-windows-desktop
 
       - name: Recuperer les dependances
         run: flutter pub get
+
+      - name: Generer les icones
+        run: dart run flutter_launcher_icons
 
       - name: Compiler l'application
         env:
