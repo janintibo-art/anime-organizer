@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../models/anime_meta.dart';
 import '../services/anilist_api.dart';
+import '../services/jikan_api.dart';
 import '../services/library_controller.dart';
 import 'discover_detail_screen.dart';
 
@@ -49,6 +50,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   bool _loading = false;
   bool _hasNext = true;
   String? _error;
+  String? _notice;
 
   @override
   void initState() {
@@ -95,18 +97,37 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       search: _search.length >= 2 ? _search : null,
     );
 
+    // AniList muet : on bascule sur MyAnimeList plutot que d'afficher un vide.
+    var items = result.items;
+    var hasNext = result.hasNext;
+    String? notice;
+    if (items.isEmpty) {
+      final backup = await JikanApi.browse(
+        page: _page,
+        sort: _sort,
+        genre: _genre.isEmpty ? null : _genre,
+        format: _format.isEmpty ? null : _format,
+      );
+      if (backup.isNotEmpty) {
+        items = backup;
+        hasNext = backup.length >= 20;
+        notice = 'AniList ne répond pas, liste fournie par MyAnimeList.';
+      }
+    }
+
     if (!mounted) return;
     setState(() {
-      for (final item in result.items) {
+      _notice = notice;
+      for (final item in items) {
         final id = item.sourceId;
         if (id != null && _seen.contains(id)) continue;
         if (id != null) _seen.add(id);
         _items.add(item);
       }
-      _hasNext = result.hasNext;
+      _hasNext = hasNext;
       _page++;
       _loading = false;
-      if (_items.isEmpty && !result.hasNext) {
+      if (_items.isEmpty && !hasNext) {
         _error = 'Aucun résultat. Change de filtre ou réessaie plus tard.';
       }
     });
@@ -154,6 +175,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           body: Column(
             children: [
               _filters(),
+              if (_notice != null && !_wishlistOnly)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(_notice!,
+                      style: const TextStyle(
+                          color: Palette.kin, fontSize: 11.5)),
+                ),
               if (_loading && _items.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 3),

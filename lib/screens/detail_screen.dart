@@ -7,6 +7,7 @@ import '../models/anime_meta.dart';
 import '../services/library_controller.dart';
 import '../services/metadata_service.dart';
 import '../widgets/poster_image.dart';
+import '../widgets/watch_links.dart';
 import 'player_screen.dart';
 
 class DetailScreen extends StatefulWidget {
@@ -345,6 +346,13 @@ class _DetailScreenState extends State<DetailScreen> {
                             label: const Text('Identifier avec l\'IA'),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 26),
+                      WatchLinks(
+                        title: anime.romajiTitle?.isNotEmpty == true
+                            ? anime.romajiTitle!
+                            : anime.title,
+                        year: anime.year,
                       ),
                       const SizedBox(height: 24),
                       Row(

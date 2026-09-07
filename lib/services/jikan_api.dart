@@ -49,6 +49,67 @@ class JikanApi {
     }
   }
 
+  /// Identifiants de genres MyAnimeList, pour retrouver les memes rayons
+  /// que sur AniList quand celui-ci ne repond pas.
+  static const Map<String, int> genreIds = {
+    'Action': 1, 'Adventure': 2, 'Comedy': 4, 'Drama': 8, 'Ecchi': 9,
+    'Fantasy': 10, 'Horror': 14, 'Mahou Shoujo': 66, 'Mecha': 18,
+    'Music': 19, 'Mystery': 7, 'Psychological': 40, 'Romance': 22,
+    'Sci-Fi': 24, 'Slice of Life': 36, 'Sports': 30, 'Supernatural': 37,
+    'Thriller': 41,
+  };
+
+  static const Map<String, String> _orderBy = {
+    'TRENDING_DESC': 'members',
+    'POPULARITY_DESC': 'members',
+    'SCORE_DESC': 'score',
+    'START_DATE_DESC': 'start_date',
+    'FAVOURITES_DESC': 'favorites',
+  };
+
+  /// Liste de secours : meme role que le parcours AniList, en moins riche.
+  static Future<List<AnimeMeta>> browse({
+    int page = 1,
+    String sort = 'TRENDING_DESC',
+    String? genre,
+    String? format,
+  }) async {
+    final params = <String, String>{
+      'page': '$page',
+      'limit': '24',
+      'sfw': 'true',
+      'order_by': _orderBy[sort] ?? 'members',
+      'sort': 'desc',
+      if (format != null && format.isNotEmpty) 'type': format.toLowerCase(),
+      if (genre != null && genreIds.containsKey(genre))
+        'genres': '${genreIds[genre]}',
+    };
+
+    for (var attempt = 0; attempt < 3; attempt++) {
+      await _gate();
+      try {
+        final uri = Uri.https('api.jikan.moe', '/v4/anime', params);
+        final res = await http.get(uri).timeout(const Duration(seconds: 25));
+        if (res.statusCode == 429) {
+          final retry = double.tryParse(res.headers['retry-after'] ?? '') ?? 2;
+          await Future<void>.delayed(
+              Duration(milliseconds: (retry * 1000).round()));
+          continue;
+        }
+        if (res.statusCode != 200) return const [];
+        final body =
+            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        final data = body['data'] as List? ?? const [];
+        return data
+            .map((e) => _map(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      } catch (_) {
+        await Future<void>.delayed(Duration(seconds: 1 + attempt));
+      }
+    }
+    return const [];
+  }
+
   static Future<AnimeMeta?> search(String title) async {
     final list = await searchMany(title, limit: 1);
     return list.isEmpty ? null : list.first;

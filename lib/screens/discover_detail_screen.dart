@@ -6,6 +6,7 @@ import '../models/anime_meta.dart';
 import '../services/anilist_api.dart';
 import '../services/library_controller.dart';
 import '../services/translate_api.dart';
+import '../widgets/watch_links.dart';
 import 'detail_screen.dart';
 
 /// Fiche d'une série du catalogue, avant de l'avoir sur le disque.
@@ -137,6 +138,13 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                           label: const Text('Traduire'),
                         ),
                       ],
+                      const SizedBox(height: 26),
+                      WatchLinks(
+                        title: meta.titleRomaji?.isNotEmpty == true
+                            ? meta.titleRomaji!
+                            : meta.title,
+                        year: meta.year,
+                      ),
                       if (_similar.isNotEmpty) ...[
                         const SizedBox(height: 26),
                         Row(
