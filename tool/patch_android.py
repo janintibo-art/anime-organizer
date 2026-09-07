@@ -56,9 +56,16 @@ def patch_gradle():
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
 
+        # minSdk : requis par media_kit
         content = re.sub(r"minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion 23", content)
         content = re.sub(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = 23", content)
         content = re.sub(r"minSdk\s+flutter\.minSdkVersion", "minSdk 23", content)
+
+        # compileSdk : file_picker et flutter_plugin_android_lifecycle exigent 36
+        content = re.sub(r"compileSdkVersion\s+flutter\.compileSdkVersion", "compileSdkVersion 36", content)
+        content = re.sub(r"compileSdk\s*=\s*flutter\.compileSdkVersion", "compileSdk = 36", content)
+        content = re.sub(r"compileSdk\s+flutter\.compileSdkVersion", "compileSdk 36", content)
+        content = re.sub(r"compileSdk\s*=\s*3[0-5]\b", "compileSdk = 36", content)
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)

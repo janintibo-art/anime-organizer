@@ -87,6 +87,10 @@ jobs:
         run: flutter pub get
 
       - name: Compiler l'application
+        env:
+          # Visual Studio 2026 refuse <experimental/coroutine>, utilise par
+          # permission_handler. Cette definition leve le blocage.
+          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
         run: flutter build windows --release
 
       - name: Compresser l'application
