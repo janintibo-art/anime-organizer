@@ -1,0 +1,97 @@
+name: Compiler APK et EXE
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: '3.24.5'
+  APP_ORG: com.animeorganizer
+  APP_NAME: anime_organizer
+
+jobs:
+  android:
+    name: APK Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Generer le dossier android
+        shell: bash
+        run: |
+          cp pubspec.yaml /tmp/pubspec.yaml
+          cp -r lib /tmp/lib_backup
+          flutter create --org "$APP_ORG" --project-name "$APP_NAME" --platforms=android .
+          cp /tmp/pubspec.yaml pubspec.yaml
+          rm -rf lib && cp -r /tmp/lib_backup lib
+
+      - name: Ajouter les permissions
+        run: python3 tool/patch_android.py
+
+      - name: Recuperer les dependances
+        run: flutter pub get
+
+      - name: Compiler l'APK
+        run: flutter build apk --release
+
+      - name: Renommer l'APK
+        shell: bash
+        run: cp build/app/outputs/flutter-apk/app-release.apk AnimeOrganizer.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AnimeOrganizer-Android
+          path: AnimeOrganizer.apk
+          retention-days: 30
+
+  windows:
+    name: EXE Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Generer le dossier windows
+        shell: bash
+        run: |
+          cp pubspec.yaml /tmp/pubspec.yaml
+          cp -r lib /tmp/lib_backup
+          flutter create --org "$APP_ORG" --project-name "$APP_NAME" --platforms=windows .
+          cp /tmp/pubspec.yaml pubspec.yaml
+          rm -rf lib && cp -r /tmp/lib_backup lib
+
+      - name: Activer la cible Windows
+        run: flutter config --enable-windows-desktop
+
+      - name: Recuperer les dependances
+        run: flutter pub get
+
+      - name: Compiler l'application
+        run: flutter build windows --release
+
+      - name: Compresser l'application
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath AnimeOrganizer-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AnimeOrganizer-Windows
+          path: AnimeOrganizer-Windows.zip
+          retention-days: 30
