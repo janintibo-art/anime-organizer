@@ -13,15 +13,21 @@ MANIFEST = os.path.join("android", "app", "src", "main", "AndroidManifest.xml")
 GROOVY_SNIPPET = """
 // Force chaque module de plugin a compiler contre le SDK 36 (ajout automatique)
 subprojects {
-    afterEvaluate { sub ->
-        if (sub.hasProperty('android')) {
-            sub.android.compileSdkVersion 36
+    def forceSdk = {
+        if (project.hasProperty('android')) {
+            project.android.compileSdkVersion 36
         }
+    }
+    if (project.state.executed) {
+        forceSdk()
+    } else {
+        project.afterEvaluate { forceSdk() }
     }
 }
 """
 
 KOTLIN_SNIPPET = """
+// Force chaque module de plugin a compiler contre le SDK 36 (ajout automatique)
 subprojects {
     val forceSdk = {
         val androidExt = extensions.findByName("android")
@@ -34,13 +40,13 @@ subprojects {
             }
         }
     }
+    // Un sous-projet deja evalue refuse afterEvaluate : on agit directement.
     if (state.executed) {
         forceSdk()
     } else {
         afterEvaluate { forceSdk() }
     }
 }
-// ajout automatique
 """
 
 PERMISSIONS = """    <uses-permission android:name="android.permission.INTERNET"/>

@@ -205,10 +205,27 @@ class LibraryController extends ChangeNotifier {
 
   /// Recupere image, synopsis et genres pour une serie.
   Future<void> fetchOne(Anime anime, {String? overrideQuery, bool persist = true}) async {
-    final meta = await MetadataService.search(
-      overrideQuery ?? anime.folderTitle,
-      source: settings.metaSource,
-    );
+    final query = overrideQuery ?? anime.folderTitle;
+    var meta = await MetadataService.smartSearch(query, source: settings.metaSource);
+
+    // Titre francais : on le traduit en anglais et on retente.
+    if (meta == null &&
+        settings.translationProvider != 'none' &&
+        MetadataService.looksFrench(query)) {
+      final english = await TranslateApi.translate(
+        query,
+        provider: settings.translationProvider,
+        targetLang: 'en',
+        sourceLang: 'fr',
+        apiKey: settings.apiKey,
+        endpoint: settings.libreEndpoint,
+        email: settings.email,
+      );
+      if (english != null && english.trim().isNotEmpty) {
+        meta = await MetadataService.smartSearch(english,
+            source: settings.metaSource);
+      }
+    }
     if (meta == null) {
       anime.metaFailed = true;
     } else {

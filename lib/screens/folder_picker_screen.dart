@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:permission_handler/permission_handler.dart';
 
 import '../main.dart';
 
@@ -21,17 +22,33 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
   List<Directory> _children = [];
   List<_Root> _roots = [];
   String? _error;
+  bool _allFilesGranted = true;
 
   @override
   void initState() {
     super.initState();
     _roots = _listRoots();
+    _checkPermission();
     final start = widget.initialPath;
     if (start != null && Directory(start).existsSync()) {
       _open(start);
     } else if (_roots.length == 1) {
       _open(_roots.first.path);
     }
+  }
+
+  Future<void> _checkPermission() async {
+    if (!Platform.isAndroid) return;
+    final granted = await Permission.manageExternalStorage.isGranted;
+    if (!mounted) return;
+    setState(() => _allFilesGranted = granted);
+  }
+
+  Future<void> _requestAllFiles() async {
+    await Permission.manageExternalStorage.request();
+    await _checkPermission();
+    if (!mounted) return;
+    setState(() => _roots = _listRoots());
   }
 
   /// Points de depart proposes selon la plateforme.
@@ -48,15 +65,24 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
           roots.add(_Root(candidate[0], candidate[1]));
         }
       }
-      // Cartes SD et cles USB montees sous /storage
-      try {
-        for (final e in Directory('/storage').listSync()) {
-          if (e is! Directory) continue;
-          final name = p.basename(e.path);
-          if (name == 'emulated' || name == 'self') continue;
-          if (_canList(e.path)) roots.add(_Root(e.path, 'Carte $name'));
-        }
-      } catch (_) {}
+      // Cartes SD et cles USB : on les propose meme si elles ne sont pas
+      // encore lisibles, sinon elles disparaissent tant que l'autorisation
+      // « tous les fichiers » n'est pas accordee.
+      for (final base in const ['/storage', '/mnt/media_rw']) {
+        try {
+          for (final e in Directory(base).listSync()) {
+            if (e is! Directory) continue;
+            final name = p.basename(e.path);
+            if (name == 'emulated' || name == 'self') continue;
+            if (roots.any((r) => r.path == e.path)) continue;
+            roots.add(_Root(
+              e.path,
+              name.contains('-') ? 'Carte SD ($name)' : 'Volume $name',
+              readable: _canList(e.path),
+            ));
+          }
+        } catch (_) {}
+      }
     } else if (Platform.isWindows) {
       for (var c = 'A'.codeUnitAt(0); c <= 'Z'.codeUnitAt(0); c++) {
         final drive = '${String.fromCharCode(c)}:\\';
@@ -169,16 +195,89 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
+        if (!_allFilesGranted) _permissionBanner(),
         for (final r in _roots)
           ListTile(
-            leading: const Icon(Icons.storage, color: Palette.jade),
+            leading: Icon(Icons.storage,
+                color: r.readable ? Palette.jade : Palette.muted),
             title: Text(r.label),
-            subtitle: Text(r.path,
-                style: const TextStyle(color: Palette.muted, fontSize: 11.5)),
+            subtitle: Text(
+              r.readable ? r.path : '${r.path} — acces refuse pour l instant',
+              style: TextStyle(
+                color: r.readable ? Palette.muted : Palette.sakura,
+                fontSize: 11.5,
+              ),
+            ),
             onTap: () => _open(r.path),
           ),
+        ListTile(
+          leading: const Icon(Icons.keyboard, color: Palette.muted),
+          title: const Text('Saisir un chemin'),
+          subtitle: const Text('Si un volume n apparait pas dans la liste',
+              style: TextStyle(color: Palette.muted, fontSize: 11.5)),
+          onTap: _manualPath,
+        ),
       ],
     );
+  }
+
+  Widget _permissionBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Palette.raised,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Acces a tous les fichiers desactive',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Sans cette autorisation, la carte SD et certains dossiers restent invisibles.',
+            style: TextStyle(color: Palette.muted, fontSize: 12.5, height: 1.4),
+          ),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: _requestAllFiles,
+            style: FilledButton.styleFrom(backgroundColor: Palette.sakura),
+            child: const Text('Autoriser'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _manualPath() async {
+    final controller = TextEditingController(
+      text: Platform.isAndroid ? '/storage/' : '',
+    );
+    final path = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Palette.surface,
+        title: const Text('Saisir un chemin'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: fieldDecoration(hintText: '/storage/1A2B-3C4D/Animes'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Ouvrir'),
+          ),
+        ],
+      ),
+    );
+    if (path == null || path.isEmpty) return;
+    _open(path);
   }
 
   Widget _folderList(String current) {
@@ -229,5 +328,6 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
 class _Root {
   final String path;
   final String label;
-  const _Root(this.path, this.label);
+  final bool readable;
+  const _Root(this.path, this.label, {this.readable = true});
 }
