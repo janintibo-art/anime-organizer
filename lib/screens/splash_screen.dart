@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../main.dart';
-import 'home_screen.dart';
+import 'root_screen.dart';
 
 /// Ecran de demarrage : l'embleme apparait, un trait rouge se trace sous lui,
 /// puis la bibliotheque prend la place. Ecrit en Flutter plutot qu'en splash
@@ -44,7 +44,7 @@ class _SplashScreenState extends State<SplashScreen>
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
             transitionDuration: const Duration(milliseconds: 350),
-            pageBuilder: (_, __, ___) => const HomeScreen(),
+            pageBuilder: (_, __, ___) => const RootScreen(),
             transitionsBuilder: (_, animation, __, child) =>
                 FadeTransition(opacity: animation, child: child),
           ),

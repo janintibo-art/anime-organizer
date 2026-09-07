@@ -97,6 +97,9 @@ class AppSettings {
 class LibraryController extends ChangeNotifier {
   List<Anime> animes = [];
   List<String> folders = [];
+
+  /// Series reperees dans l'onglet Decouvrir et mises de cote.
+  List<AnimeMeta> wishlist = [];
   AppSettings settings = AppSettings();
 
   bool busy = false;
@@ -146,6 +149,11 @@ class LibraryController extends ChangeNotifier {
               ?.map((e) => Anime.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??
           [];
+      wishlist = (data['wishlist'] as List?)
+              ?.map((e) =>
+                  AnimeMeta.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          [];
       return true;
     } catch (_) {
       // Fichier illisible : on tentera la copie de secours.
@@ -164,6 +172,7 @@ class LibraryController extends ChangeNotifier {
         'folders': folders,
         'settings': settings.toJson(),
         'animes': animes.map((a) => a.toJson()).toList(),
+        'wishlist': wishlist.map((w) => w.toJson()).toList(),
       }), flush: true);
 
       if (f.existsSync()) {
@@ -503,6 +512,7 @@ class LibraryController extends ChangeNotifier {
         'folders': folders,
         'settings': settings.toJson(),
         'animes': animes.map((a) => a.toJson()).toList(),
+        'wishlist': wishlist.map((w) => w.toJson()).toList(),
       };
 
   String _two(int v) => v.toString().padLeft(2, '0');
@@ -643,6 +653,39 @@ class LibraryController extends ChangeNotifier {
       _report('');
     }
     return done;
+  }
+
+  // ------------------------------------------------------------- Decouvrir
+
+  bool inWishlist(AnimeMeta meta) =>
+      wishlist.any((w) => w.source == meta.source && w.sourceId == meta.sourceId);
+
+  Future<void> toggleWishlist(AnimeMeta meta) async {
+    if (inWishlist(meta)) {
+      wishlist.removeWhere(
+          (w) => w.source == meta.source && w.sourceId == meta.sourceId);
+    } else {
+      wishlist.insert(0, meta);
+    }
+    await save();
+    notifyListeners();
+  }
+
+  /// Serie du disque correspondant a une fiche du catalogue, s'il y en a une.
+  Anime? localMatch(AnimeMeta meta) {
+    final keys = <String>{
+      meta.fingerprint,
+      if (meta.titleRomaji != null)
+        meta.titleRomaji!.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''),
+    }..removeWhere((k) => k.length < 4);
+
+    for (final a in animes) {
+      if (a.malId != null && a.malId == meta.sourceId && a.metaSource == meta.source) {
+        return a;
+      }
+      if (keys.contains(a.fingerprint)) return a;
+    }
+    return null;
   }
 
   /// Autres dossiers contenant apparemment la même série.

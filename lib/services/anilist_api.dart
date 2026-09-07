@@ -9,10 +9,41 @@ export '../models/anime_meta.dart';
 /// AniList (GraphQL, gratuit, sans cle). Plus complet et plus rapide que
 /// Jikan : une seule requete ramene image, description, genres, note,
 /// popularite et studios. Limite officielle : 90 requetes par minute.
+class BrowsePage {
+  final List<AnimeMeta> items;
+  final bool hasNext;
+  const BrowsePage(this.items, this.hasNext);
+}
+
 class AniListApi {
   static const String _url = 'https://graphql.anilist.co';
   static DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
   static const Duration _minGap = Duration(milliseconds: 700);
+
+  static const String _fields = r'''
+      id
+      title{romaji english native}
+      coverImage{large medium}
+      description(asHtml:false)
+      genres episodes averageScore popularity seasonYear status format
+      studios(isMain:true){nodes{name}}
+''';
+
+  /// Genres proposes par AniList, dans l'ordre du site.
+  static const List<String> genreList = [
+    'Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy',
+    'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological',
+    'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller',
+  ];
+
+  /// Saison en cours, au sens d'AniList.
+  static String currentSeason([DateTime? now]) {
+    final month = (now ?? DateTime.now()).month;
+    if (month <= 3) return 'WINTER';
+    if (month <= 6) return 'SPRING';
+    if (month <= 9) return 'SUMMER';
+    return 'FALL';
+  }
 
   static const String _query = r'''
 query($search:String,$perPage:Int){
@@ -32,6 +63,135 @@ query($search:String,$perPage:Int){
     final elapsed = DateTime.now().difference(_last);
     if (elapsed < _minGap) await Future<void>.delayed(_minGap - elapsed);
     _last = DateTime.now();
+  }
+
+  /// Parcourt le catalogue : c'est ce qui alimente l'onglet Decouvrir.
+  static Future<BrowsePage> browse({
+    int page = 1,
+    int perPage = 30,
+    String sort = 'TRENDING_DESC',
+    String? genre,
+    String? format,
+    String? season,
+    int? seasonYear,
+    String? search,
+  }) async {
+    const query = r'''
+query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$format:MediaFormat,$season:MediaSeason,$seasonYear:Int,$search:String){
+  Page(page:$page,perPage:$perPage){
+    pageInfo{hasNextPage}
+    media(type:ANIME,isAdult:false,sort:$sort,genre:$genre,format:$format,season:$season,seasonYear:$seasonYear,search:$search){
+      id
+      title{romaji english native}
+      coverImage{large medium}
+      description(asHtml:false)
+      genres episodes averageScore popularity seasonYear status format
+      studios(isMain:true){nodes{name}}
+    }
+  }
+}''';
+
+    final variables = <String, dynamic>{
+      'page': page,
+      'perPage': perPage,
+      'sort': [search != null && search.isNotEmpty ? 'SEARCH_MATCH' : sort],
+      if (genre != null && genre.isNotEmpty) 'genre': genre,
+      if (format != null && format.isNotEmpty) 'format': format,
+      if (season != null && season.isNotEmpty) 'season': season,
+      if (seasonYear != null) 'seasonYear': seasonYear,
+      if (search != null && search.isNotEmpty) 'search': search,
+    };
+
+    for (var attempt = 0; attempt < 3; attempt++) {
+      await _throttle();
+      try {
+        final res = await http
+            .post(
+              Uri.parse(_url),
+              headers: const {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonEncode({'query': query, 'variables': variables}),
+            )
+            .timeout(const Duration(seconds: 25));
+
+        if (res.statusCode == 429) {
+          final retry =
+              double.tryParse(res.headers['retry-after'] ?? '') ?? (2 + attempt);
+          if (retry > 25) return const BrowsePage([], false);
+          await Future<void>.delayed(
+              Duration(milliseconds: (retry * 1000).round()));
+          continue;
+        }
+        if (res.statusCode != 200) return const BrowsePage([], false);
+
+        final body =
+            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        final pageData = (body['data'] as Map?)?['Page'] as Map?;
+        final media = pageData?['media'] as List? ?? const [];
+        final hasNext =
+            (pageData?['pageInfo'] as Map?)?['hasNextPage'] as bool? ?? false;
+        final items = media
+            .map((e) => _map(Map<String, dynamic>.from(e as Map)))
+            .whereType<AnimeMeta>()
+            .toList();
+        return BrowsePage(items, hasNext);
+      } catch (_) {
+        await Future<void>.delayed(Duration(seconds: 1 + attempt));
+      }
+    }
+    return const BrowsePage([], false);
+  }
+
+  /// Series proches, proposees par AniList.
+  static Future<List<AnimeMeta>> recommendations(int id) async {
+    const query = r'''
+query($id:Int){
+  Media(id:$id,type:ANIME){
+    recommendations(perPage:12,sort:RATING_DESC){
+      nodes{
+        mediaRecommendation{
+          id
+          title{romaji english native}
+          coverImage{large medium}
+          description(asHtml:false)
+          genres episodes averageScore popularity seasonYear status format
+          studios(isMain:true){nodes{name}}
+        }
+      }
+    }
+  }
+}''';
+    await _throttle();
+    try {
+      final res = await http
+          .post(
+            Uri.parse(_url),
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'query': query,
+              'variables': {'id': id}
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      if (res.statusCode != 200) return const [];
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final nodes = (((body['data'] as Map?)?['Media'] as Map?)?['recommendations']
+              as Map?)?['nodes'] as List? ??
+          const [];
+      return nodes
+          .map((n) => (n as Map)['mediaRecommendation'])
+          .whereType<Map>()
+          .map((m) => _map(Map<String, dynamic>.from(m)))
+          .whereType<AnimeMeta>()
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   static Future<AnimeMeta?> search(String title) async {
