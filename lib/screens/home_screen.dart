@@ -23,9 +23,13 @@ class _HomeScreenState extends State<HomeScreen> {
   String _query = '';
   String _genre = '';
   bool _favoritesOnly = false;
+  String _collection = ''; // '' | todo | watching | done
 
   bool get _filtering =>
-      _query.isNotEmpty || _genre.isNotEmpty || _favoritesOnly;
+      _query.isNotEmpty ||
+      _genre.isNotEmpty ||
+      _favoritesOnly ||
+      _collection.isNotEmpty;
 
   @override
   void initState() {
@@ -163,11 +167,14 @@ class _HomeScreenState extends State<HomeScreen> {
   // ---------------------------------------------------------------- contenu
 
   Widget _content() {
-    final items = library.view(
+    var items = library.view(
       query: _query,
       genre: _genre,
       favoritesOnly: _favoritesOnly,
     );
+    if (_collection.isNotEmpty) {
+      items = items.where((a) => a.collection == _collection).toList();
+    }
 
     if (items.isEmpty) {
       return const Center(
@@ -369,6 +376,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => setState(() => _favoritesOnly = !_favoritesOnly),
                 ),
                 const SizedBox(width: 8),
+                for (final c in const [
+                  ['todo', 'À voir'],
+                  ['watching', 'En cours'],
+                  ['done', 'Terminés'],
+                ]) ...[
+                  _chip(
+                    label: c[1],
+                    selected: _collection == c[0],
+                    onTap: () => setState(() =>
+                        _collection = _collection == c[0] ? '' : c[0]),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 _chip(
                   label: 'Tous les genres',
                   selected: _genre.isEmpty,

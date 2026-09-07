@@ -31,6 +31,58 @@ class Scanner {
   static final RegExp _edges = RegExp(r'^[\s\-–—_]+|[\s\-–—_]+$');
   static final RegExp _digits = RegExp(r'\d+');
 
+  // Numerotation : du plus explicite au plus approximatif.
+  static final RegExp _sxxexx =
+      RegExp(r's(\d{1,2})\s*[e_-]\s*(\d{1,3})', caseSensitive: false);
+  static final RegExp _seasonWord =
+      RegExp(r'(?:saison|season)\s*0*(\d{1,2})', caseSensitive: false);
+  static final RegExp _episodeWord = RegExp(
+      r'(?:[eé]pisode|ep|e)\s*0*(\d{1,3})\b',
+      caseSensitive: false);
+  static final RegExp _dashNumber = RegExp(r'[-–—_]\s*0*(\d{1,3})\s*(?:[^\d]|$)');
+  static final RegExp _bracketNumber = RegExp(r'[\[(]\s*0*(\d{1,3})\s*[\])]');
+  static final RegExp _bonusWords = RegExp(
+      r'\b(oav|ova|ona|nc(?:op|ed)|opening|ending|special|sp\d?|bonus|'
+      r'making|pv|trailer|preview|teaser|omake|film|movie)\b',
+      caseSensitive: false);
+
+  /// Deduit saison, numero et nature du fichier.
+  static Episode describe(String filePath, String rootPath) {
+    final name = p.basenameWithoutExtension(filePath);
+    final relative = p.relative(filePath, from: rootPath);
+    final haystack = '$relative $name';
+
+    final bonus = _bonusWords.hasMatch(name);
+
+    int? season;
+    int? number;
+
+    final full = _sxxexx.firstMatch(haystack);
+    if (full != null) {
+      season = int.tryParse(full.group(1)!);
+      number = int.tryParse(full.group(2)!);
+    } else {
+      final seasonMatch = _seasonWord.firstMatch(haystack);
+      if (seasonMatch != null) season = int.tryParse(seasonMatch.group(1)!);
+
+      // On cherche le numero dans le nom de fichier seul : un dossier
+      // « Naruto 2003 » ne doit pas donner l'episode 2003.
+      final cleaned = name.replaceAll(RegExp(r'\b(19|20)\d{2}\b'), ' ');
+      final match = _episodeWord.firstMatch(cleaned) ??
+          _dashNumber.firstMatch(cleaned) ??
+          _bracketNumber.firstMatch(cleaned);
+      if (match != null) number = int.tryParse(match.group(1)!);
+    }
+
+    return Episode(
+      path: filePath,
+      name: name,
+      season: season,
+      number: bonus ? null : number,
+      bonus: bonus,
+    );
+  }
+
   /// Transforme `[HorribleSubs] Made.in.Abyss - 03 [1080p].mkv`
   /// en `Made in Abyss`.
   static String cleanTitle(String raw) {
@@ -111,16 +163,29 @@ class Scanner {
     final result = <Anime>[];
     groups.forEach((key, files) {
       files.sort((a, b) => naturalCompare(p.basename(a.path), p.basename(b.path)));
+      final root = roots.firstWhere(
+        (r) => p.isWithin(r, key) || p.equals(r, key),
+        orElse: () => key,
+      );
+      final episodes = files.map((f) => describe(f.path, root)).toList();
+
+      // Tri final : saison, puis numero, puis nom. Les bonus ferment la marche.
+      episodes.sort((a, b) {
+        if (a.bonus != b.bonus) return a.bonus ? 1 : -1;
+        final sa = a.season ?? 1;
+        final sb = b.season ?? 1;
+        if (sa != sb) return sa.compareTo(sb);
+        final na = a.number ?? 9999;
+        final nb = b.number ?? 9999;
+        if (na != nb) return na.compareTo(nb);
+        return naturalCompare(a.name, b.name);
+      });
+
       result.add(
         Anime(
           id: key,
           folderTitle: titles[key] ?? p.basename(key),
-          episodes: files
-              .map((f) => Episode(
-                    path: f.path,
-                    name: p.basenameWithoutExtension(f.path),
-                  ))
-              .toList(),
+          episodes: episodes,
         ),
       );
     });

@@ -2,14 +2,60 @@ class Episode {
   final String path;
   final String name;
 
-  const Episode({required this.path, required this.name});
+  /// Saison et numero deduits du chemin et du nom de fichier.
+  final int? season;
+  final int? number;
 
-  Map<String, dynamic> toJson() => {'path': path, 'name': name};
+  /// OAV, generique, making-of : compte a part, pas dans la numerotation.
+  final bool bonus;
+
+  const Episode({
+    required this.path,
+    required this.name,
+    this.season,
+    this.number,
+    this.bonus = false,
+  });
+
+  String get label {
+    if (bonus) return name;
+    if (number == null) return name;
+    return 'Épisode $number';
+  }
+
+  Map<String, dynamic> toJson() => {
+        'path': path,
+        'name': name,
+        'season': season,
+        'number': number,
+        'bonus': bonus,
+      };
 
   factory Episode.fromJson(Map<String, dynamic> j) => Episode(
         path: j['path'] as String,
         name: j['name'] as String,
+        season: j['season'] as int?,
+        number: j['number'] as int?,
+        bonus: j['bonus'] as bool? ?? false,
       );
+}
+
+/// Anomalies reperees dans une serie : trous dans la numerotation,
+/// fichiers en double, contenus bonus.
+class SeriesIssues {
+  final Map<int, List<int>> missing;
+  final Map<int, List<int>> duplicates;
+  final int bonusCount;
+
+  const SeriesIssues(this.missing, this.duplicates, this.bonusCount);
+
+  bool get isEmpty =>
+      missing.isEmpty && duplicates.isEmpty && bonusCount == 0;
+
+  int get missingCount =>
+      missing.values.fold<int>(0, (sum, l) => sum + l.length);
+  int get duplicateCount =>
+      duplicates.values.fold<int>(0, (sum, l) => sum + l.length);
 }
 
 class Anime {
@@ -124,6 +170,64 @@ class Anime {
     final i = episodes.indexWhere((e) => e.path == lastEpisodePath);
     if (i < 0 || i != resumeIndex) return Duration.zero;
     return Duration(milliseconds: lastPositionMs);
+  }
+
+  /// Saisons presentes, dans l'ordre. La saison 0 regroupe les fichiers
+  /// dont aucune saison n'a pu etre deduite.
+  List<int> get seasons {
+    final set = <int>{};
+    for (final e in episodes) {
+      if (!e.bonus) set.add(e.season ?? 1);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  SeriesIssues get issues {
+    final bySeason = <int, List<int>>{};
+    var bonus = 0;
+
+    for (final e in episodes) {
+      if (e.bonus) {
+        bonus++;
+        continue;
+      }
+      if (e.number == null) continue;
+      bySeason.putIfAbsent(e.season ?? 1, () => []).add(e.number!);
+    }
+
+    final missing = <int, List<int>>{};
+    final duplicates = <int, List<int>>{};
+
+    bySeason.forEach((season, numbers) {
+      final counts = <int, int>{};
+      for (final n in numbers) {
+        counts[n] = (counts[n] ?? 0) + 1;
+      }
+      final doubled = counts.entries
+          .where((e) => e.value > 1)
+          .map((e) => e.key)
+          .toList()
+        ..sort();
+      if (doubled.isNotEmpty) duplicates[season] = doubled;
+
+      final present = counts.keys.toList()..sort();
+      if (present.length < 2) return;
+      final holes = <int>[];
+      for (var n = present.first; n < present.last; n++) {
+        if (!counts.containsKey(n)) holes.add(n);
+      }
+      if (holes.isNotEmpty) missing[season] = holes;
+    });
+
+    return SeriesIssues(missing, duplicates, bonus);
+  }
+
+  /// Collection a laquelle la serie appartient.
+  String get collection {
+    if (finished) return 'done';
+    if (started) return 'watching';
+    return 'todo';
   }
 
   String get sortKey => title.toLowerCase().replaceAll(RegExp(r'^(the|le|la|les|a|an) '), '');

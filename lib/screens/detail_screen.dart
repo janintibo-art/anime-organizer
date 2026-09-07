@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 
 import '../main.dart';
 import '../models/anime.dart';
@@ -138,23 +137,73 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  /// Regroupe les episodes par saison, d'apres le dossier ou le nom de fichier.
+  /// Regroupe les episodes par saison, les bonus a part.
   Map<String, List<int>> _bySeason() {
     final groups = <String, List<int>>{};
-    final seasonInPath = RegExp(
-        r'(?:saison|season|s)\s*0*(\d{1,2})\b',
-        caseSensitive: false);
+    final multiSeason = anime.seasons.length > 1;
 
     for (var i = 0; i < anime.episodes.length; i++) {
       final e = anime.episodes[i];
-      final folder = p.basename(p.dirname(e.path));
-      final match = seasonInPath.firstMatch(folder) ??
-          seasonInPath.firstMatch(e.name);
-      final label =
-          match != null ? 'Saison ${int.parse(match.group(1)!)}' : 'Épisodes';
+      final label = e.bonus
+          ? 'Bonus et hors-série'
+          : (multiSeason ? 'Saison ${e.season ?? 1}' : 'Épisodes');
       groups.putIfAbsent(label, () => []).add(i);
     }
     return groups;
+  }
+
+  /// Petit bilan : trous dans la numérotation, doublons, contenus bonus.
+  Widget _healthCard() {
+    final issues = anime.issues;
+    if (issues.isEmpty) return const SizedBox.shrink();
+
+    final lines = <String>[];
+    issues.missing.forEach((season, holes) {
+      final where = anime.seasons.length > 1 ? 'saison $season : ' : '';
+      final list = holes.take(12).join(', ');
+      lines.add('Épisodes manquants — $where$list'
+          '${holes.length > 12 ? '…' : ''}');
+    });
+    issues.duplicates.forEach((season, doubled) {
+      final where = anime.seasons.length > 1 ? 'saison $season : ' : '';
+      lines.add('En double — $where${doubled.join(', ')}');
+    });
+    if (issues.bonusCount > 0) {
+      lines.add(
+          '${issues.bonusCount} fichier${issues.bonusCount > 1 ? 's' : ''} bonus '
+          '(OAV, génériques, making-of)');
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Palette.surface,
+        border: Border.all(color: Palette.line),
+        borderRadius: BorderRadius.circular(radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.fact_check_outlined, size: 16, color: Palette.kin),
+              SizedBox(width: 8),
+              Text('État de la collection',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final line in lines)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(line,
+                  style: const TextStyle(
+                      color: Palette.muted, fontSize: 12, height: 1.4)),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -190,6 +239,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         const SizedBox(height: 14),
                         _genres(),
                       ],
+                      _healthCard(),
                       const SizedBox(height: 18),
                       Text(
                         synopsis == null || synopsis.isEmpty
@@ -498,13 +548,14 @@ class _DetailScreenState extends State<DetailScreen> {
           ),
           child: seen
               ? const Icon(Icons.check, size: 16, color: Palette.ink)
-              : Text('${index + 1}',
+              : Text(
+                  e.bonus ? '★' : '${e.number ?? index + 1}',
                   style:
                       const TextStyle(fontSize: 12, color: Palette.muted)),
         ),
       ),
       title: Text(
-        e.name,
+        e.label,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -515,7 +566,10 @@ class _DetailScreenState extends State<DetailScreen> {
       subtitle: missing
           ? const Text('Fichier introuvable',
               style: TextStyle(fontSize: 11.5, color: Palette.shu))
-          : null,
+          : Text(e.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: Palette.muted)),
       trailing: const Icon(Icons.play_circle_outline, color: Palette.muted),
       onTap: missing ? null : () => _play(index),
     );
