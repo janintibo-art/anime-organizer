@@ -6,6 +6,7 @@ import '../models/anime.dart';
 import '../models/anime_meta.dart';
 import '../services/library_controller.dart';
 import '../services/metadata_service.dart';
+import '../widgets/poster_image.dart';
 import 'player_screen.dart';
 
 class DetailScreen extends StatefulWidget {
@@ -371,15 +372,11 @@ class _DetailScreenState extends State<DetailScreen> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            if (anime.imageUrl != null)
-              CachedNetworkImage(
-                imageUrl: anime.imageUrl!,
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                errorWidget: (_, __, ___) => Container(color: Palette.surface),
-              )
-            else
-              Container(color: Palette.surface),
+            PosterImage(
+              anime: anime,
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            ),
             // L'affiche sert de decor : on l'assombrit pour garder le texte lisible.
             Container(color: const Color(0x99000000)),
             Container(

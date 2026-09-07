@@ -71,6 +71,7 @@ class Anime {
 
   int? malId;
   String? imageUrl;
+  String? posterPath;
   String? synopsisEn;
   String? synopsisTranslated;
   List<String> genres;
@@ -105,6 +106,7 @@ class Anime {
     this.nativeTitle,
     this.malId,
     this.imageUrl,
+    this.posterPath,
     this.synopsisEn,
     this.synopsisTranslated,
     List<String>? genres,
@@ -239,6 +241,7 @@ class Anime {
         'nativeTitle': nativeTitle,
         'malId': malId,
         'imageUrl': imageUrl,
+        'posterPath': posterPath,
         'synopsisEn': synopsisEn,
         'synopsisTranslated': synopsisTranslated,
         'genres': genres,
@@ -268,6 +271,7 @@ class Anime {
         nativeTitle: j['nativeTitle'] as String?,
         malId: j['malId'] as int?,
         imageUrl: j['imageUrl'] as String?,
+        posterPath: j['posterPath'] as String?,
         synopsisEn: j['synopsisEn'] as String?,
         synopsisTranslated: j['synopsisTranslated'] as String?,
         genres: (j['genres'] as List?)?.map((e) => e.toString()).toList() ?? [],

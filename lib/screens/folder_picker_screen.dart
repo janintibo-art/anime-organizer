@@ -11,7 +11,16 @@ import '../services/scanner.dart';
 /// donc le meme comportement sur Windows et sur Android.
 class FolderPickerScreen extends StatefulWidget {
   final String? initialPath;
-  const FolderPickerScreen({super.key, this.initialPath});
+
+  /// Extension a selectionner (« .json »). Quand elle est fournie, l'ecran
+  /// liste aussi les fichiers et renvoie celui qu'on touche.
+  final String? pickExtension;
+
+  const FolderPickerScreen({
+    super.key,
+    this.initialPath,
+    this.pickExtension,
+  });
 
   @override
   State<FolderPickerScreen> createState() => _FolderPickerScreenState();
@@ -20,6 +29,7 @@ class FolderPickerScreen extends StatefulWidget {
 class _FolderPickerScreenState extends State<FolderPickerScreen> {
   String? _current;
   List<Directory> _children = [];
+  List<File> _files = [];
   List<_Root> _roots = [];
   String? _error;
   bool _allFilesGranted = true;
@@ -120,19 +130,31 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
             .basename(a.path)
             .toLowerCase()
             .compareTo(p.basename(b.path).toLowerCase()));
+      final ext = widget.pickExtension;
+      final files = ext == null
+          ? <File>[]
+          : (Directory(path)
+              .listSync(followLinks: false)
+              .whereType<File>()
+              .where((f) => f.path.toLowerCase().endsWith(ext.toLowerCase()))
+              .toList()
+            ..sort((a, b) => b.path.compareTo(a.path)));
+
       setState(() {
         _current = path;
         _children = dirs;
+        _files = files;
         _error = null;
       });
     } catch (_) {
       setState(() {
         _current = path;
         _children = [];
+        _files = [];
         _error = 'Dossier illisible. Vérifie les autorisations de stockage.';
       });
     }
-    _preview(path);
+    if (widget.pickExtension == null) _preview(path);
   }
 
   /// Compte ce que l'importation trouverait, avant de valider.
@@ -200,7 +222,9 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
 
     return Scaffold(
       appBar: darkAppBar(
-        title: const Text('Choisir un dossier'),
+        title: Text(widget.pickExtension == null
+            ? 'Choisir un dossier'
+            : 'Choisir un fichier'),
         actions: [
           IconButton(
             tooltip: 'Saisir un chemin',
@@ -215,7 +239,9 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
             ),
         ],
       ),
-      bottomNavigationBar: current == null ? null : _selectionBar(current),
+      bottomNavigationBar: (current == null || widget.pickExtension != null)
+          ? null
+          : _selectionBar(current),
       body: current == null ? _rootList() : _folderList(current),
     );
   }
@@ -470,24 +496,39 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
                 style: const TextStyle(color: Palette.shu, fontSize: 13)),
           ),
         Expanded(
-          child: _children.isEmpty
+          child: _children.isEmpty && _files.isEmpty
               ? const Center(
-                  child: Text('Aucun sous-dossier ici.',
+                  child: Text('Rien à afficher ici.',
                       style: TextStyle(color: Palette.muted)),
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  itemCount: _children.length,
+                  itemCount: _children.length + _files.length,
                   itemBuilder: (context, i) {
-                    final d = _children[i];
+                    if (i < _children.length) {
+                      final d = _children[i];
+                      return ListTile(
+                        leading: const Icon(Icons.folder_outlined,
+                            color: Palette.kin),
+                        title: Text(p.basename(d.path),
+                            style: const TextStyle(fontSize: 14)),
+                        trailing: const Icon(Icons.chevron_right,
+                            color: Palette.muted, size: 20),
+                        onTap: () => _open(d.path),
+                      );
+                    }
+                    final f = _files[i - _children.length];
                     return ListTile(
-                      leading: const Icon(Icons.folder_outlined,
-                          color: Palette.kin),
-                      title: Text(p.basename(d.path),
-                          style: const TextStyle(fontSize: 14)),
-                      trailing: const Icon(Icons.chevron_right,
-                          color: Palette.muted, size: 20),
-                      onTap: () => _open(d.path),
+                      leading: const Icon(Icons.description_outlined,
+                          color: Palette.shu),
+                      title: Text(p.basename(f.path),
+                          style: const TextStyle(fontSize: 13.5)),
+                      subtitle: Text(
+                        '${(f.lengthSync() / 1024).toStringAsFixed(0)} Ko',
+                        style: const TextStyle(
+                            color: Palette.muted, fontSize: 11.5),
+                      ),
+                      onTap: () => Navigator.pop(context, f.path),
                     );
                   },
                 ),

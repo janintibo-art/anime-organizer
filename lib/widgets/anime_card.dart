@@ -1,8 +1,8 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../models/anime.dart';
+import 'poster_image.dart';
 
 /// Affiche d'une serie. Reagit au survol sous Windows et a l'appui sur mobile.
 class AnimeCard extends StatefulWidget {
@@ -53,7 +53,7 @@ class _AnimeCardState extends State<AnimeCard> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      _poster(anime),
+                      PosterImage(anime: anime),
                       Positioned(
                         left: 0,
                         right: 0,
@@ -169,29 +169,6 @@ class _AnimeCardState extends State<AnimeCard> {
     );
   }
 
-  Widget _poster(Anime anime) {
-    if (anime.imageUrl == null || anime.imageUrl!.isEmpty) {
-      return Container(
-        decoration: BoxDecoration(
-          color: Palette.surface,
-          border: Border.all(color: Palette.line),
-        ),
-        alignment: Alignment.center,
-        child: const Icon(Icons.movie_outlined, color: Palette.muted, size: 32),
-      );
-    }
-    return CachedNetworkImage(
-      imageUrl: anime.imageUrl!,
-      fit: BoxFit.cover,
-      fadeInDuration: const Duration(milliseconds: 150),
-      placeholder: (_, __) => Container(color: Palette.raised),
-      errorWidget: (_, __, ___) => Container(
-        color: Palette.raised,
-        alignment: Alignment.center,
-        child: const Icon(Icons.broken_image_outlined, color: Palette.muted),
-      ),
-    );
-  }
 }
 
 /// Ligne compacte pour le mode liste.
@@ -214,14 +191,7 @@ class AnimeRow extends StatelessWidget {
               child: SizedBox(
                 width: 46,
                 height: 66,
-                child: anime.imageUrl == null
-                    ? Container(
-                        color: Palette.raised,
-                        child: const Icon(Icons.movie_outlined,
-                            color: Palette.muted, size: 18),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: anime.imageUrl!, fit: BoxFit.cover),
+                child: PosterImage(anime: anime, iconSize: 18),
               ),
             ),
             const SizedBox(width: 12),

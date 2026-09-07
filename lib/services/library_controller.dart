@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/anime.dart';
 import '../models/anime_meta.dart';
 import 'metadata_service.dart';
+import 'poster_cache.dart';
 import 'scanner.dart';
 import 'translate_api.dart';
 
@@ -23,6 +24,7 @@ class AppSettings {
   bool autoTranslate = true;
   bool autoFetch = true;
   bool scanOnStart = true;
+  bool offlinePosters = true;
   String metaSource = 'auto'; // auto | anilist | jikan
   String viewMode = 'grid'; // grid | list | genre
   String sortMode = 'alpha'; // alpha | score | year | episodes | recent
@@ -36,6 +38,7 @@ class AppSettings {
         'autoTranslate': autoTranslate,
         'autoFetch': autoFetch,
         'scanOnStart': scanOnStart,
+        'offlinePosters': offlinePosters,
         'metaSource': metaSource,
         'viewMode': viewMode,
         'sortMode': sortMode,
@@ -51,6 +54,7 @@ class AppSettings {
     s.autoTranslate = j['autoTranslate'] as bool? ?? true;
     s.autoFetch = j['autoFetch'] as bool? ?? true;
     s.scanOnStart = j['scanOnStart'] as bool? ?? true;
+    s.offlinePosters = j['offlinePosters'] as bool? ?? true;
     s.metaSource = j['metaSource'] as String? ?? 'auto';
     s.viewMode = j['viewMode'] as String? ?? 'grid';
     s.sortMode = j['sortMode'] as String? ?? 'alpha';
@@ -268,6 +272,9 @@ class LibraryController extends ChangeNotifier {
       anime.metaFailed = anime.metaFailCount >= 3;
     } else {
       applyMeta(anime, meta);
+      if (settings.offlinePosters) {
+        anime.posterPath = await PosterCache.ensure(anime.id, anime.imageUrl);
+      }
       if (settings.autoTranslate && settings.translationProvider != 'none') {
         await translateOne(anime, persist: false);
       }
@@ -282,6 +289,7 @@ class LibraryController extends ChangeNotifier {
     anime.apiTitle = meta.title;
     anime.nativeTitle = meta.titleNative;
     anime.imageUrl = meta.imageUrl;
+    anime.posterPath = null;
     anime.synopsisEn = meta.synopsis;
     anime.synopsisTranslated = null;
     anime.genres = meta.genres;
@@ -420,8 +428,118 @@ class LibraryController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Map<String, dynamic> _snapshot() => {
+        'version': 1,
+        'exportedAt': DateTime.now().toIso8601String(),
+        'folders': folders,
+        'settings': settings.toJson(),
+        'animes': animes.map((a) => a.toJson()).toList(),
+      };
+
+  String _two(int v) => v.toString().padLeft(2, '0');
+
+  /// Écrit une sauvegarde lisible dans le dossier choisi.
+  Future<String> exportLibrary(String folder) async {
+    final now = DateTime.now();
+    final stamp =
+        '${now.year}${_two(now.month)}${_two(now.day)}-${_two(now.hour)}${_two(now.minute)}';
+    final file =
+        File(p.join(folder, 'anime-organizer-sauvegarde-$stamp.json'));
+    await file.writeAsString(jsonEncode(_snapshot()), flush: true);
+    return file.path;
+  }
+
+  /// Restaure une sauvegarde. En mode fusion, les fiches et la progression
+  /// sont reprises mais la liste des fichiers reste celle du disque.
+  Future<int> importLibrary(String path, {bool merge = true}) async {
+    final data =
+        jsonDecode(await File(path).readAsString()) as Map<String, dynamic>;
+    final incoming = (data['animes'] as List? ?? [])
+        .map((e) => Anime.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+
+    if (!merge) {
+      animes = incoming;
+      folders = (data['folders'] as List?)?.map((e) => e.toString()).toList() ??
+          folders;
+    } else {
+      final byId = {for (final a in animes) a.id: a};
+      for (final b in incoming) {
+        final current = byId[b.id];
+        if (current == null) {
+          animes.add(b);
+          continue;
+        }
+        current.apiTitle = b.apiTitle ?? current.apiTitle;
+        current.nativeTitle = b.nativeTitle ?? current.nativeTitle;
+        current.malId = b.malId ?? current.malId;
+        current.imageUrl = b.imageUrl ?? current.imageUrl;
+        current.posterPath = b.posterPath ?? current.posterPath;
+        current.synopsisEn = b.synopsisEn ?? current.synopsisEn;
+        current.synopsisTranslated =
+            b.synopsisTranslated ?? current.synopsisTranslated;
+        if (b.genres.isNotEmpty) current.genres = b.genres;
+        current.score = b.score ?? current.score;
+        current.popularity = b.popularity ?? current.popularity;
+        current.studios = b.studios ?? current.studios;
+        current.year = b.year ?? current.year;
+        current.type = b.type ?? current.type;
+        current.status = b.status ?? current.status;
+        current.episodesCount = b.episodesCount ?? current.episodesCount;
+        current.metaFetched = current.metaFetched || b.metaFetched;
+        current.favorite = current.favorite || b.favorite;
+        for (final w in b.watchedPaths) {
+          if (!current.watchedPaths.contains(w)) current.watchedPaths.add(w);
+        }
+        if ((b.lastPlayedAtMs ?? 0) > (current.lastPlayedAtMs ?? 0)) {
+          current.lastPlayedAtMs = b.lastPlayedAtMs;
+          current.lastEpisodePath = b.lastEpisodePath;
+          current.lastPositionMs = b.lastPositionMs;
+        }
+      }
+    }
+
+    await save();
+    notifyListeners();
+    return incoming.length;
+  }
+
+  /// Télécharge les affiches manquantes pour un usage hors connexion.
+  Future<int> cachePosters() async {
+    if (busy) return 0;
+    busy = true;
+    var done = 0;
+    final todo = animes
+        .where((a) =>
+            a.imageUrl != null &&
+            a.imageUrl!.isNotEmpty &&
+            !PosterCache.exists(a.posterPath))
+        .toList();
+    try {
+      for (var i = 0; i < todo.length; i++) {
+        _report('Affiche ${i + 1}/${todo.length}', (i + 1) / todo.length);
+        final path = await PosterCache.ensure(todo[i].id, todo[i].imageUrl);
+        if (path != null) {
+          todo[i].posterPath = path;
+          done++;
+        }
+      }
+      await save();
+    } finally {
+      busy = false;
+      _report('');
+    }
+    return done;
+  }
+
+  /// Séries dont la fiche n'a pas pu être identifiée.
+  List<Anime> get unmatched =>
+      animes.where((a) => !a.metaFetched).toList()
+        ..sort((a, b) => a.folderTitle.compareTo(b.folderTitle));
+
   Future<void> clearLibrary() async {
     animes = [];
+    await PosterCache.clear();
     await save();
     notifyListeners();
   }

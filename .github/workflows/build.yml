@@ -48,7 +48,10 @@ jobs:
         run: dart run flutter_launcher_icons
 
       - name: Compiler l'APK
-        run: flutter build apk --release
+        run: >
+          flutter build apk --release
+          --build-name=1.${{ github.run_number }}.0
+          --build-number=${{ github.run_number }}
 
       - name: Renommer l'APK
         shell: bash
@@ -101,7 +104,10 @@ jobs:
           # Visual Studio 2026 refuse <experimental/coroutine>, utilise par
           # permission_handler. Cette definition leve le blocage.
           CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
-        run: flutter build windows --release
+        run: >
+          flutter build windows --release
+          --build-name=1.${{ github.run_number }}.0
+          --build-number=${{ github.run_number }}
 
       - name: Compresser l'application
         shell: pwsh

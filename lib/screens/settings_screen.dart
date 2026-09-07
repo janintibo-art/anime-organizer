@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../services/library_controller.dart';
+import '../services/poster_cache.dart';
+import 'bulk_fix_screen.dart';
+import 'folder_picker_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -90,10 +93,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Images, synopsis, genres, notes et studios.',
                   ),
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: library.busy ? null : () => library.retryFailed(),
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Compléter les fiches manquantes'),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed:
+                            library.busy ? null : () => library.retryFailed(),
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Compléter les fiches manquantes'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const BulkFixScreen()),
+                        ),
+                        icon: const Icon(Icons.edit_note, size: 18),
+                        label: Text(
+                            'Corriger ${library.unmatched.length} fiche(s)'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -164,6 +183,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         library.busy ? null : () => library.translateAll(),
                     icon: const Icon(Icons.translate, size: 18),
                     label: const Text('Tout traduire'),
+                  ),
+                ],
+              ),
+              _card(
+                icon: Icons.cloud_off_outlined,
+                title: 'Hors connexion',
+                children: [
+                  _switch(
+                    value: s.offlinePosters,
+                    onChanged: (v) =>
+                        library.updateSettings((s) => s.offlinePosters = v),
+                    title: 'Enregistrer les affiches sur l\'appareil',
+                    subtitle:
+                        'La bibliothèque reste illustrée sans connexion.',
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: library.busy ? null : _cachePosters,
+                        icon: const Icon(Icons.download_outlined, size: 18),
+                        label: const Text('Télécharger les affiches'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _clearPosters,
+                        icon: const Icon(Icons.cleaning_services_outlined,
+                            size: 18),
+                        label: const Text('Vider le cache d\'affiches'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              _card(
+                icon: Icons.save_outlined,
+                title: 'Sauvegarde',
+                children: [
+                  const Text(
+                    'Un fichier unique contient les fiches, les favoris et la progression. '
+                    'Les vidéos ne sont pas copiées.',
+                    style: TextStyle(
+                        color: Palette.muted, fontSize: 12, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _export,
+                        icon: const Icon(Icons.upload_file, size: 18),
+                        label: const Text('Exporter'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _import,
+                        icon: const Icon(Icons.restore, size: 18),
+                        label: const Text('Restaurer'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -274,6 +354,97 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _cachePosters() async {
+    final count = await library.cachePosters();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$count affiche(s) enregistrée(s).')),
+    );
+  }
+
+  Future<void> _clearPosters() async {
+    final count = await PosterCache.clear();
+    for (final a in library.animes) {
+      a.posterPath = null;
+    }
+    await library.save();
+    library.refresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$count fichier(s) supprimé(s).')),
+    );
+  }
+
+  Future<void> _export() async {
+    final folder = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const FolderPickerScreen()),
+    );
+    if (folder == null) return;
+    try {
+      final path = await library.exportLibrary(folder);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sauvegarde écrite : $path')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Écriture impossible dans ce dossier.')),
+      );
+    }
+  }
+
+  Future<void> _import() async {
+    final file = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => const FolderPickerScreen(pickExtension: '.json'),
+      ),
+    );
+    if (file == null || !mounted) return;
+
+    final merge = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Palette.surface,
+        title: const Text('Restaurer cette sauvegarde ?'),
+        content: const Text(
+          'Fusionner conserve ta bibliothèque actuelle et y ajoute les fiches et la progression du fichier. '
+          'Remplacer efface tout et repart de la sauvegarde.',
+          style: TextStyle(height: 1.4),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Remplacer',
+                  style: TextStyle(color: Palette.shu))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Palette.shu),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Fusionner'),
+          ),
+        ],
+      ),
+    );
+    if (merge == null) return;
+
+    try {
+      final count = await library.importLibrary(file, merge: merge);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$count série(s) restaurée(s).')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fichier de sauvegarde illisible.')),
+      );
+    }
   }
 
   Future<void> _confirmRemoveFolder(String folder) async {
