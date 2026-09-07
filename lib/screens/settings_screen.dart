@@ -115,6 +115,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 12),
               _section('Fiches'),
+              _dropdown<String>(
+                label: 'Source des metadonnees',
+                value: s.metaSource,
+                items: const {
+                  'auto': 'AniList, puis MyAnimeList si besoin',
+                  'anilist': 'AniList seulement',
+                  'jikan': 'MyAnimeList seulement',
+                },
+                onChanged: (v) => library.updateSettings((s) => s.metaSource = v),
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 activeColor: Palette.sakura,
@@ -122,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: (v) => library.updateSettings((s) => s.autoFetch = v),
                 title: const Text('Chercher images et descriptions',
                     style: TextStyle(fontSize: 14)),
-                subtitle: const Text('Source : MyAnimeList via l\'API Jikan.',
+                subtitle: const Text('Images, synopsis, genres, notes et studios.',
                     style: TextStyle(color: Palette.muted, fontSize: 12)),
               ),
               const SizedBox(height: 8),

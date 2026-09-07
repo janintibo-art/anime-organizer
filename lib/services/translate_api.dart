@@ -7,6 +7,12 @@ import 'package:http/http.dart' as http;
 ///  - libretranslate: serveur public ou auto-heberge
 ///  - deepl         : meilleure qualite, cle API gratuite requise
 class TranslateApi {
+  /// Cache en memoire : evite de reconsommer le quota quotidien
+  /// quand la meme description est retraduite.
+  static final Map<String, String> _cache = {};
+
+  static void clearCache() => _cache.clear();
+
   static Future<String?> translate(
     String text, {
     required String provider,
@@ -19,16 +25,24 @@ class TranslateApi {
     final input = text.trim();
     if (input.isEmpty || provider == 'none') return null;
 
+    final key = '$provider|$sourceLang|$targetLang|${input.hashCode}';
+    final cached = _cache[key];
+    if (cached != null) return cached;
+
+    String? result;
     switch (provider) {
       case 'mymemory':
-        return _myMemory(input, sourceLang, targetLang, email);
+        result = await _myMemory(input, sourceLang, targetLang, email);
+        break;
       case 'libretranslate':
-        return _libre(input, sourceLang, targetLang, endpoint, apiKey);
+        result = await _libre(input, sourceLang, targetLang, endpoint, apiKey);
+        break;
       case 'deepl':
-        return _deepl(input, targetLang, apiKey);
-      default:
-        return null;
+        result = await _deepl(input, targetLang, apiKey);
+        break;
     }
+    if (result != null && result.trim().isNotEmpty) _cache[key] = result;
+    return result;
   }
 
   /// Decoupe le texte en morceaux courts sans casser les phrases.

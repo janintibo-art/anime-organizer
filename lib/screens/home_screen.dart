@@ -281,6 +281,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'alpha': 'A → Z',
       'genre': 'Par genre',
       'score': 'Mieux notes',
+      'popularity': 'Les plus connus',
       'year': 'Plus recents',
       'episodes': 'Plus d\'episodes',
     };

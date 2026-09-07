@@ -28,6 +28,9 @@ class Anime {
   String? synopsisTranslated;
   List<String> genres;
   double? score;
+  int? popularity;
+  String? studios;
+  String? metaSource;
   int? year;
   String? type;
   String? status;
@@ -49,6 +52,9 @@ class Anime {
     this.synopsisTranslated,
     List<String>? genres,
     this.score,
+    this.popularity,
+    this.studios,
+    this.metaSource,
     this.year,
     this.type,
     this.status,
@@ -80,6 +86,9 @@ class Anime {
         'synopsisTranslated': synopsisTranslated,
         'genres': genres,
         'score': score,
+        'popularity': popularity,
+        'studios': studios,
+        'metaSource': metaSource,
         'year': year,
         'type': type,
         'status': status,
@@ -100,6 +109,9 @@ class Anime {
         synopsisTranslated: j['synopsisTranslated'] as String?,
         genres: (j['genres'] as List?)?.map((e) => e.toString()).toList() ?? [],
         score: (j['score'] as num?)?.toDouble(),
+        popularity: j['popularity'] as int?,
+        studios: j['studios'] as String?,
+        metaSource: j['metaSource'] as String?,
         year: j['year'] as int?,
         type: j['type'] as String?,
         status: j['status'] as String?,

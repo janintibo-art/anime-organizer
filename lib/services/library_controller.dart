@@ -6,7 +6,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/anime.dart';
-import 'jikan_api.dart';
+import '../models/anime_meta.dart';
+import 'metadata_service.dart';
 import 'scanner.dart';
 import 'translate_api.dart';
 
@@ -21,6 +22,7 @@ class AppSettings {
   String email = '';
   bool autoTranslate = true;
   bool autoFetch = true;
+  String metaSource = 'auto'; // auto | anilist | jikan
   String sortMode = 'alpha'; // alpha | score | year | episodes | recent
 
   Map<String, dynamic> toJson() => {
@@ -31,6 +33,7 @@ class AppSettings {
         'email': email,
         'autoTranslate': autoTranslate,
         'autoFetch': autoFetch,
+        'metaSource': metaSource,
         'sortMode': sortMode,
       };
 
@@ -43,6 +46,7 @@ class AppSettings {
     s.email = j['email'] as String? ?? '';
     s.autoTranslate = j['autoTranslate'] as bool? ?? true;
     s.autoFetch = j['autoFetch'] as bool? ?? true;
+    s.metaSource = j['metaSource'] as String? ?? 'auto';
     s.sortMode = j['sortMode'] as String? ?? 'alpha';
     return s;
   }
@@ -163,7 +167,10 @@ class LibraryController extends ChangeNotifier {
 
   /// Recupere image, synopsis et genres pour une serie.
   Future<void> fetchOne(Anime anime, {String? overrideQuery, bool persist = true}) async {
-    final meta = await JikanApi.search(overrideQuery ?? anime.folderTitle);
+    final meta = await MetadataService.search(
+      overrideQuery ?? anime.folderTitle,
+      source: settings.metaSource,
+    );
     if (meta == null) {
       anime.metaFailed = true;
     } else {
@@ -177,13 +184,16 @@ class LibraryController extends ChangeNotifier {
   }
 
   void applyMeta(Anime anime, AnimeMeta meta) {
-    anime.malId = meta.malId;
+    anime.malId = meta.sourceId;
+    anime.metaSource = meta.source;
     anime.apiTitle = meta.title;
     anime.imageUrl = meta.imageUrl;
     anime.synopsisEn = meta.synopsis;
     anime.synopsisTranslated = null;
     anime.genres = meta.genres;
     anime.score = meta.score;
+    anime.popularity = meta.popularity;
+    anime.studios = meta.studios;
     anime.year = meta.year;
     anime.type = meta.type;
     anime.status = meta.status;
@@ -287,6 +297,9 @@ class LibraryController extends ChangeNotifier {
     switch (settings.sortMode) {
       case 'score':
         list.sort((a, b) => (b.score ?? -1).compareTo(a.score ?? -1));
+        break;
+      case 'popularity':
+        list.sort((a, b) => (b.popularity ?? -1).compareTo(a.popularity ?? -1));
         break;
       case 'year':
         list.sort((a, b) => (b.year ?? 0).compareTo(a.year ?? 0));

@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../models/anime.dart';
-import '../services/jikan_api.dart';
+import '../models/anime_meta.dart';
+import '../services/metadata_service.dart';
 import '../services/library_controller.dart';
 import 'player_screen.dart';
 
@@ -73,7 +74,10 @@ class _DetailScreenState extends State<DetailScreen> {
     if (query == null || query.isEmpty) return;
 
     setState(() => _working = true);
-    final results = await JikanApi.searchMany(query);
+    final results = await MetadataService.searchMany(
+      query,
+      source: library.settings.metaSource,
+    );
     if (!mounted) return;
     setState(() => _working = false);
 
@@ -101,11 +105,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         imageUrl: r.imageUrl!, fit: BoxFit.cover)),
             title: Text(r.title, style: const TextStyle(fontSize: 14)),
             subtitle: Text(
-              [
-                if (r.year != null) '${r.year}',
-                if (r.type != null) r.type!,
-                if (r.episodes != null) '${r.episodes} ep.',
-              ].join(' · '),
+              r.summaryLine,
               style: const TextStyle(color: Palette.muted, fontSize: 12),
             ),
             onTap: () => Navigator.pop(ctx, r),
@@ -238,6 +238,7 @@ class _DetailScreenState extends State<DetailScreen> {
       if (anime.type != null) anime.type!,
       if (anime.episodesCount != null) '${anime.episodesCount} episodes',
       if (anime.status != null) anime.status!,
+      if (anime.studios != null) anime.studios!,
     ];
 
     return Row(

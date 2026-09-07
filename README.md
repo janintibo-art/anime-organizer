@@ -1,7 +1,7 @@
 # Anime Organizer
 
 Organise une collection d'animes stockee sur disque : scan des dossiers, recuperation
-automatique des affiches, synopsis et genres via l'API Jikan (MyAnimeList), traduction
+automatique des affiches, synopsis et genres via AniList et Jikan, traduction
 des descriptions anglaises, tri par genre ou alphabetique, et lecteur video integre.
 
 Un seul code source Flutter produit l'application Windows (`.exe`) et Android (`.apk`).
