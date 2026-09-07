@@ -124,6 +124,65 @@ class _DetailScreenState extends State<DetailScreen> {
     }, 'Impossible d\'appliquer la fiche.');
   }
 
+  Future<void> _askAi() async {
+    setState(() => _working = true);
+    final message = await library.identifyWithAi(anime);
+    if (!mounted) return;
+    setState(() => _working = false);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Les trois écritures du titre, quand elles sont connues.
+  Widget _titleVariants() {
+    final rows = <List<String>>[
+      if (anime.romajiTitle != null && anime.romajiTitle!.isNotEmpty)
+        ['Romaji', anime.romajiTitle!],
+      if (anime.apiTitle != null && anime.apiTitle!.isNotEmpty)
+        ['Anglais', anime.apiTitle!],
+      if (anime.frenchTitle != null && anime.frenchTitle!.isNotEmpty)
+        ['Français', anime.frenchTitle!],
+      if (anime.nativeTitle != null && anime.nativeTitle!.isNotEmpty)
+        ['日本語', anime.nativeTitle!],
+    ];
+    if (rows.length < 2) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Palette.surface,
+        border: Border.all(color: Palette.line),
+        borderRadius: BorderRadius.circular(radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final row in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 68,
+                    child: Text(row[0],
+                        style: const TextStyle(
+                            color: Palette.muted, fontSize: 11.5)),
+                  ),
+                  Expanded(
+                    child: Text(row[1],
+                        style: const TextStyle(
+                            fontSize: 13, height: 1.35)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   void _play(int index, {Duration at = Duration.zero}) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -240,6 +299,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         const SizedBox(height: 14),
                         _genres(),
                       ],
+                      _titleVariants(),
                       _healthCard(),
                       const SizedBox(height: 18),
                       Text(
@@ -274,6 +334,11 @@ class _DetailScreenState extends State<DetailScreen> {
                             onPressed: _working ? null : _searchAgain,
                             icon: const Icon(Icons.search, size: 18),
                             label: const Text('Corriger la fiche'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _working ? null : _askAi,
+                            icon: const Icon(Icons.auto_awesome, size: 18),
+                            label: const Text('Identifier avec l\'IA'),
                           ),
                         ],
                       ),

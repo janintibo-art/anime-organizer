@@ -116,6 +116,7 @@ class JikanApi {
           ? english
           : (j['title'] as String? ?? 'Sans titre'),
       titleNative: j['title_japanese'] as String?,
+      titleRomaji: j['title'] as String?,
       imageUrl: (webp?['large_image_url'] ??
           jpg?['large_image_url'] ??
           jpg?['image_url']) as String?,

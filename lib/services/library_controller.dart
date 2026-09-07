@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/anime.dart';
 import '../models/anime_meta.dart';
 import 'metadata_service.dart';
+import 'ai_service.dart';
 import 'poster_cache.dart';
 import 'scanner.dart';
 import 'translate_api.dart';
@@ -25,6 +26,13 @@ class AppSettings {
   bool autoFetch = true;
   bool scanOnStart = true;
   bool offlinePosters = true;
+
+  // Assistant IA
+  bool aiEnabled = true;
+  String aiProvider = 'groq'; // groq | openrouter | custom
+  String aiKey = '';
+  String aiModel = 'openai/gpt-oss-20b';
+  String aiEndpoint = '';
   String metaSource = 'auto'; // auto | anilist | jikan
   String viewMode = 'grid'; // grid | list | genre
   String sortMode = 'alpha'; // alpha | score | year | episodes | recent
@@ -39,6 +47,11 @@ class AppSettings {
         'autoFetch': autoFetch,
         'scanOnStart': scanOnStart,
         'offlinePosters': offlinePosters,
+        'aiEnabled': aiEnabled,
+        'aiProvider': aiProvider,
+        'aiKey': aiKey,
+        'aiModel': aiModel,
+        'aiEndpoint': aiEndpoint,
         'metaSource': metaSource,
         'viewMode': viewMode,
         'sortMode': sortMode,
@@ -55,6 +68,11 @@ class AppSettings {
     s.autoFetch = j['autoFetch'] as bool? ?? true;
     s.scanOnStart = j['scanOnStart'] as bool? ?? true;
     s.offlinePosters = j['offlinePosters'] as bool? ?? true;
+    s.aiEnabled = j['aiEnabled'] as bool? ?? true;
+    s.aiProvider = j['aiProvider'] as String? ?? 'groq';
+    s.aiKey = j['aiKey'] as String? ?? '';
+    s.aiModel = j['aiModel'] as String? ?? 'openai/gpt-oss-20b';
+    s.aiEndpoint = j['aiEndpoint'] as String? ?? '';
     s.metaSource = j['metaSource'] as String? ?? 'auto';
     s.viewMode = j['viewMode'] as String? ?? 'grid';
     s.sortMode = j['sortMode'] as String? ?? 'alpha';
@@ -265,6 +283,26 @@ class LibraryController extends ChangeNotifier {
             source: settings.metaSource);
       }
     }
+
+    // Dernier recours : l'IA identifie la serie et donne son vrai titre.
+    AiTitles? ai;
+    if (meta == null && settings.aiEnabled && settings.aiKey.isNotEmpty) {
+      ai = await AiService.identify(
+        folderTitle: query,
+        provider: settings.aiProvider,
+        apiKey: settings.aiKey,
+        model: settings.aiModel,
+        custom: settings.aiEndpoint,
+      );
+      if (ai != null && ai.usable) {
+        meta = await MetadataService.smartSearch(ai.searchQuery,
+            source: settings.metaSource);
+        if (meta == null && ai.english.isNotEmpty) {
+          meta = await MetadataService.smartSearch(ai.english,
+              source: settings.metaSource);
+        }
+      }
+    }
     if (meta == null) {
       // Une panne reseau ne doit pas condamner la fiche : on retentera
       // aux prochains demarrages, jusqu'a trois fois.
@@ -272,6 +310,11 @@ class LibraryController extends ChangeNotifier {
       anime.metaFailed = anime.metaFailCount >= 3;
     } else {
       applyMeta(anime, meta);
+      if (ai != null && ai.usable) {
+        if (ai.french.isNotEmpty) anime.frenchTitle = ai.french;
+        if (ai.japanese.isNotEmpty) anime.nativeTitle ??= ai.japanese;
+        if (ai.romaji.isNotEmpty) anime.romajiTitle ??= ai.romaji;
+      }
       if (settings.offlinePosters) {
         anime.posterPath = await PosterCache.ensure(anime.id, anime.imageUrl);
       }
@@ -288,6 +331,7 @@ class LibraryController extends ChangeNotifier {
     anime.metaSource = meta.source;
     anime.apiTitle = meta.title;
     anime.nativeTitle = meta.titleNative;
+    anime.romajiTitle = meta.titleRomaji;
     anime.imageUrl = meta.imageUrl;
     anime.posterPath = null;
     anime.synopsisEn = meta.synopsis;
@@ -502,6 +546,50 @@ class LibraryController extends ChangeNotifier {
     await save();
     notifyListeners();
     return incoming.length;
+  }
+
+  /// Demande à l'IA d'identifier une série, puis relance la recherche
+  /// de fiche avec le titre qu'elle donne. Renvoie un message à afficher.
+  Future<String> identifyWithAi(Anime anime) async {
+    if (!settings.aiEnabled || settings.aiKey.isEmpty) {
+      return 'Renseigne une clé IA dans les réglages.';
+    }
+    final ai = await AiService.identify(
+      folderTitle: anime.folderTitle,
+      provider: settings.aiProvider,
+      apiKey: settings.aiKey,
+      model: settings.aiModel,
+      custom: settings.aiEndpoint,
+    );
+    if (ai == null) return 'L\'IA n\'a pas répondu.';
+    if (!ai.usable) return 'L\'IA n\'a pas reconnu cette série.';
+
+    if (ai.french.isNotEmpty) anime.frenchTitle = ai.french;
+    if (ai.japanese.isNotEmpty) anime.nativeTitle = ai.japanese;
+    if (ai.romaji.isNotEmpty) anime.romajiTitle = ai.romaji;
+
+    final meta = await MetadataService.smartSearch(ai.searchQuery,
+        source: settings.metaSource);
+    if (meta != null) {
+      final french = anime.frenchTitle;
+      final japanese = anime.nativeTitle;
+      applyMeta(anime, meta);
+      anime.frenchTitle = french;
+      anime.nativeTitle ??= japanese;
+      if (settings.offlinePosters) {
+        anime.posterPath = await PosterCache.ensure(anime.id, anime.imageUrl);
+      }
+      if (settings.autoTranslate && settings.translationProvider != 'none') {
+        await translateOne(anime, persist: false);
+      }
+      await save();
+      notifyListeners();
+      return 'Identifiée : ${meta.title}';
+    }
+
+    await save();
+    notifyListeners();
+    return 'Titres mis à jour, mais aucune fiche trouvée pour ${ai.searchQuery}.';
   }
 
   /// Télécharge les affiches manquantes pour un usage hors connexion.

@@ -68,6 +68,8 @@ class Anime {
   /// Titre renvoye par l'API.
   String? apiTitle;
   String? nativeTitle;
+  String? romajiTitle;
+  String? frenchTitle;
 
   int? malId;
   String? imageUrl;
@@ -104,6 +106,8 @@ class Anime {
     required this.folderTitle,
     this.apiTitle,
     this.nativeTitle,
+    this.romajiTitle,
+    this.frenchTitle,
     this.malId,
     this.imageUrl,
     this.posterPath,
@@ -239,6 +243,8 @@ class Anime {
         'folderTitle': folderTitle,
         'apiTitle': apiTitle,
         'nativeTitle': nativeTitle,
+        'romajiTitle': romajiTitle,
+        'frenchTitle': frenchTitle,
         'malId': malId,
         'imageUrl': imageUrl,
         'posterPath': posterPath,
@@ -269,6 +275,8 @@ class Anime {
         folderTitle: j['folderTitle'] as String? ?? '',
         apiTitle: j['apiTitle'] as String?,
         nativeTitle: j['nativeTitle'] as String?,
+        romajiTitle: j['romajiTitle'] as String?,
+        frenchTitle: j['frenchTitle'] as String?,
         malId: j['malId'] as int?,
         imageUrl: j['imageUrl'] as String?,
         posterPath: j['posterPath'] as String?,

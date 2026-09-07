@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../main.dart';
@@ -44,6 +45,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
     super.initState();
     _roots = _listRoots();
     _checkPermission();
+    _addExternalVolumes();
     final start = widget.initialPath;
     if (start != null && Directory(start).existsSync()) _open(start);
   }
@@ -60,6 +62,37 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
     await _checkPermission();
     if (!mounted) return;
     setState(() => _roots = _listRoots());
+    await _addExternalVolumes();
+  }
+
+  /// Sur Android 11+, lister /storage ne montre plus les cartes SD.
+  /// Android accepte en revanche de donner les dossiers de l'application sur
+  /// chaque volume monté : on remonte de là jusqu'à la racine du volume.
+  Future<void> _addExternalVolumes() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final dirs = await getExternalStorageDirectories();
+      if (dirs == null) return;
+      final found = <_Root>[];
+      for (final d in dirs) {
+        final marker = d.path.indexOf('/Android/');
+        if (marker <= 0) continue;
+        final volume = d.path.substring(0, marker);
+        if (volume.contains('/emulated/')) continue;
+        if (_roots.any((r) => r.path == volume)) continue;
+        if (found.any((r) => r.path == volume)) continue;
+        found.add(_Root(
+          volume,
+          'Carte SD',
+          icon: 'sd',
+          subtitle: p.basename(volume),
+          readable: _canList(volume),
+        ));
+      }
+      if (found.isNotEmpty && mounted) {
+        setState(() => _roots = [..._roots, ...found]);
+      }
+    } catch (_) {}
   }
 
   List<_Root> _listRoots() {

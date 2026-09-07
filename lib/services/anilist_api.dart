@@ -114,6 +114,7 @@ query($search:String,$perPage:Int){
       source: 'anilist',
       title: name,
       titleNative: titles['native'] as String?,
+      titleRomaji: romaji,
       imageUrl: (cover?['large'] ?? cover?['medium']) as String?,
       synopsis: _stripHtml(m['description'] as String?),
       genres: genres,

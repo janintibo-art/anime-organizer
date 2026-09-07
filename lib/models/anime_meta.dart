@@ -4,6 +4,7 @@ class AnimeMeta {
   final String source; // 'anilist' ou 'jikan'
   final String title;
   final String? titleNative;
+  final String? titleRomaji;
   final String? imageUrl;
   final String? synopsis;
   final List<String> genres;
@@ -20,6 +21,7 @@ class AnimeMeta {
     required this.source,
     required this.title,
     this.titleNative,
+    this.titleRomaji,
     this.imageUrl,
     this.synopsis,
     this.genres = const [],

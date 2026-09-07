@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../services/library_controller.dart';
+import '../services/ai_service.dart';
 import '../services/poster_cache.dart';
 import 'bulk_fix_screen.dart';
 import 'folder_picker_screen.dart';
@@ -20,12 +21,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
       TextEditingController(text: library.settings.libreEndpoint);
   late final TextEditingController _email =
       TextEditingController(text: library.settings.email);
+  late final TextEditingController _aiKey =
+      TextEditingController(text: library.settings.aiKey);
+  late final TextEditingController _aiModel =
+      TextEditingController(text: library.settings.aiModel);
+  late final TextEditingController _aiEndpoint =
+      TextEditingController(text: library.settings.aiEndpoint);
+
+  List<String> _models = [];
+  String? _aiMessage;
+  bool _aiBusy = false;
 
   @override
   void dispose() {
     _key.dispose();
     _endpoint.dispose();
     _email.dispose();
+    _aiKey.dispose();
+    _aiModel.dispose();
+    _aiEndpoint.dispose();
     super.dispose();
   }
 
@@ -184,6 +198,109 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: const Icon(Icons.translate, size: 18),
                     label: const Text('Tout traduire'),
                   ),
+                ],
+              ),
+              _card(
+                icon: Icons.auto_awesome,
+                title: 'Assistant IA',
+                children: [
+                  const Text(
+                    'Quand AniList et MyAnimeList ne reconnaissent pas un dossier, '
+                    'l\'IA identifie la série et donne son titre en romaji, en anglais, '
+                    'en français et en japonais.',
+                    style: TextStyle(
+                        color: Palette.muted, fontSize: 12, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  _switch(
+                    value: s.aiEnabled,
+                    onChanged: (v) =>
+                        library.updateSettings((s) => s.aiEnabled = v),
+                    title: 'Utiliser l\'IA en dernier recours',
+                    subtitle:
+                        'Uniquement quand la recherche classique échoue.',
+                  ),
+                  _dropdown<String>(
+                    label: 'Fournisseur',
+                    value: s.aiProvider,
+                    items: const {
+                      'groq': 'Groq — gratuit, sans carte bancaire',
+                      'openrouter': 'OpenRouter',
+                      'custom': 'Serveur compatible OpenAI',
+                    },
+                    onChanged: (v) {
+                      library.updateSettings((s) => s.aiProvider = v);
+                      setState(() => _models = []);
+                    },
+                  ),
+                  if (s.aiProvider == 'custom')
+                    _field(
+                      controller: _aiEndpoint,
+                      label: 'Adresse du serveur',
+                      hint: 'https://mon-serveur/v1',
+                      onSubmit: (v) =>
+                          library.updateSettings((s) => s.aiEndpoint = v),
+                    ),
+                  _field(
+                    controller: _aiKey,
+                    label: 'Clé d\'API',
+                    hint: s.aiProvider == 'groq'
+                        ? 'console.groq.com — clé gratuite'
+                        : 'Collée depuis ton compte',
+                    obscure: true,
+                    onSubmit: (v) => library.updateSettings((s) => s.aiKey = v),
+                  ),
+                  if (_models.isEmpty)
+                    _field(
+                      controller: _aiModel,
+                      label: 'Modèle',
+                      hint: 'openai/gpt-oss-20b',
+                      onSubmit: (v) =>
+                          library.updateSettings((s) => s.aiModel = v),
+                    )
+                  else
+                    _dropdown<String>(
+                      label: 'Modèle',
+                      value: _models.contains(s.aiModel)
+                          ? s.aiModel
+                          : _models.first,
+                      items: {for (final m in _models) m: m},
+                      onChanged: (v) {
+                        _aiModel.text = v;
+                        library.updateSettings((s) => s.aiModel = v);
+                      },
+                    ),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _aiBusy ? null : _loadModels,
+                        icon: const Icon(Icons.list_alt, size: 18),
+                        label: const Text('Charger les modèles'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _aiBusy ? null : _testAi,
+                        icon: const Icon(Icons.wifi_tethering, size: 18),
+                        label: const Text('Tester la connexion'),
+                      ),
+                    ],
+                  ),
+                  if (_aiBusy)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: LinearProgressIndicator(
+                          minHeight: 3,
+                          backgroundColor: Palette.raised,
+                          color: Palette.shu),
+                    ),
+                  if (_aiMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(_aiMessage!,
+                          style: const TextStyle(
+                              color: Palette.kin, fontSize: 12, height: 1.4)),
+                    ),
                 ],
               ),
               _card(
@@ -354,6 +471,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _loadModels() async {
+    setState(() {
+      _aiBusy = true;
+      _aiMessage = null;
+    });
+    final models = await AiService.listModels(
+      provider: library.settings.aiProvider,
+      apiKey: _aiKey.text.trim(),
+      custom: _aiEndpoint.text.trim(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _aiBusy = false;
+      _models = models;
+      _aiMessage = models.isEmpty
+          ? 'Aucun modèle reçu. Vérifie la clé et la connexion.'
+          : '${models.length} modèles disponibles.';
+    });
+  }
+
+  Future<void> _testAi() async {
+    setState(() {
+      _aiBusy = true;
+      _aiMessage = null;
+    });
+    final result = await AiService.test(
+      provider: library.settings.aiProvider,
+      apiKey: _aiKey.text.trim(),
+      model: _aiModel.text.trim(),
+      custom: _aiEndpoint.text.trim(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _aiBusy = false;
+      _aiMessage = result;
+    });
   }
 
   Future<void> _cachePosters() async {
