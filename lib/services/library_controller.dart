@@ -22,6 +22,7 @@ class AppSettings {
   String email = '';
   bool autoTranslate = true;
   bool autoFetch = true;
+  bool scanOnStart = true;
   String metaSource = 'auto'; // auto | anilist | jikan
   String sortMode = 'alpha'; // alpha | score | year | episodes | recent
 
@@ -33,6 +34,7 @@ class AppSettings {
         'email': email,
         'autoTranslate': autoTranslate,
         'autoFetch': autoFetch,
+        'scanOnStart': scanOnStart,
         'metaSource': metaSource,
         'sortMode': sortMode,
       };
@@ -46,6 +48,7 @@ class AppSettings {
     s.email = j['email'] as String? ?? '';
     s.autoTranslate = j['autoTranslate'] as bool? ?? true;
     s.autoFetch = j['autoFetch'] as bool? ?? true;
+    s.scanOnStart = j['scanOnStart'] as bool? ?? true;
     s.metaSource = j['metaSource'] as String? ?? 'auto';
     s.sortMode = j['sortMode'] as String? ?? 'alpha';
     return s;
@@ -60,6 +63,13 @@ class LibraryController extends ChangeNotifier {
   bool busy = false;
   String status = '';
   double progress = 0;
+
+  /// Nombre de series decouvertes lors du dernier scan.
+  int lastNewCount = 0;
+
+  /// Dossiers injoignables au dernier scan (disque debranche, permission
+  /// refusee). Leurs fiches sont conservees plutot que supprimees.
+  List<String> unreachableFolders = [];
 
   File? _file;
 
@@ -132,9 +142,19 @@ class LibraryController extends ChangeNotifier {
     _report('Analyse des dossiers');
 
     try {
-      final found = await Scanner.scanFolders(folders, onProgress: (m) => _report(m));
+      // Un dossier injoignable ne doit pas effacer les fiches deja connues.
+      final reachable = <String>[];
+      final unreachable = <String>[];
+      for (final f in folders) {
+        (Directory(f).existsSync() ? reachable : unreachable).add(f);
+      }
+      unreachableFolders = unreachable;
+
+      final found =
+          await Scanner.scanFolders(reachable, onProgress: (m) => _report(m));
       final existing = {for (final a in animes) a.id: a};
       final merged = <Anime>[];
+      var discovered = 0;
 
       for (final item in found) {
         final old = existing[item.id];
@@ -144,8 +164,19 @@ class LibraryController extends ChangeNotifier {
           merged.add(old);
         } else {
           merged.add(item);
+          discovered++;
         }
       }
+
+      // Series appartenant a un dossier momentanement inaccessible.
+      for (final a in animes) {
+        if (merged.any((m) => m.id == a.id)) continue;
+        final orphan = unreachable.any(
+            (f) => p.equals(f, a.id) || p.isWithin(f, a.id));
+        if (orphan) merged.add(a);
+      }
+
+      lastNewCount = discovered;
       animes = merged;
       await save();
       notifyListeners();
@@ -163,6 +194,13 @@ class LibraryController extends ChangeNotifier {
       busy = false;
       _report('');
     }
+  }
+
+  /// Scan lance a l'ouverture de l'application : detecte les nouveaux
+  /// dossiers sans retoucher aux fiches deja enregistrees.
+  Future<void> startupScan() async {
+    if (!settings.scanOnStart || folders.isEmpty || busy) return;
+    await scan();
   }
 
   /// Recupere image, synopsis et genres pour une serie.

@@ -25,6 +25,34 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _favoritesOnly = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startupScan());
+  }
+
+  /// Cherche les nouveautes des l'ouverture. Les series deja connues
+  /// gardent leur fiche : seules les nouvelles interrogent les API.
+  Future<void> _startupScan() async {
+    if (library.folders.isEmpty) return;
+    await library.startupScan();
+    if (!mounted) return;
+
+    final messages = <String>[];
+    if (library.lastNewCount > 0) {
+      messages.add(library.lastNewCount == 1
+          ? '1 nouvelle serie ajoutee'
+          : '${library.lastNewCount} nouvelles series ajoutees');
+    }
+    if (library.unreachableFolders.isNotEmpty) {
+      messages.add(
+          '${library.unreachableFolders.length} dossier(s) injoignable(s), fiches conservees');
+    }
+    if (messages.isEmpty) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(messages.join(' · '))));
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();

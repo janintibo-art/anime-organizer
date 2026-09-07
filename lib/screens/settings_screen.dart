@@ -115,6 +115,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 12),
               _section('Fiches'),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeColor: Palette.sakura,
+                value: s.scanOnStart,
+                onChanged: (v) => library.updateSettings((s) => s.scanOnStart = v),
+                title: const Text('Scanner a chaque ouverture',
+                    style: TextStyle(fontSize: 14)),
+                subtitle: const Text(
+                    'Detecte les nouveaux animes. Les fiches deja trouvees sont conservees.',
+                    style: TextStyle(color: Palette.muted, fontSize: 12)),
+              ),
               _dropdown<String>(
                 label: 'Source des metadonnees',
                 value: s.metaSource,
