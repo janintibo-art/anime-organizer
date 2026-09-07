@@ -24,14 +24,15 @@ class _HomeScreenState extends State<HomeScreen> {
   String _genre = '';
   bool _favoritesOnly = false;
 
+  bool get _filtering =>
+      _query.isNotEmpty || _genre.isNotEmpty || _favoritesOnly;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _startupScan());
   }
 
-  /// Cherche les nouveautes des l'ouverture. Les series deja connues
-  /// gardent leur fiche : seules les nouvelles interrogent les API.
   Future<void> _startupScan() async {
     if (library.folders.isEmpty) return;
     await library.startupScan();
@@ -58,15 +59,13 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<bool> _ensurePermissions() async {
-    if (!Platform.isAndroid) return true;
+  Future<void> _ensurePermissions() async {
+    if (!Platform.isAndroid) return;
     await Permission.videos.request();
     await Permission.storage.request();
-    var manage = await Permission.manageExternalStorage.status;
-    if (!manage.isGranted) {
-      manage = await Permission.manageExternalStorage.request();
+    if (!await Permission.manageExternalStorage.isGranted) {
+      await Permission.manageExternalStorage.request();
     }
-    return true;
   }
 
   Future<void> _addFolder() async {
@@ -80,62 +79,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await library.scan();
   }
 
-  Future<void> _addFolderManually() async {
-    final controller = TextEditingController(
-      text: Platform.isAndroid ? '/storage/emulated/0/' : '',
-    );
-    final path = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Palette.surface,
-        title: const Text('Saisir un chemin'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Utile sur Android quand le sélecteur de dossiers ne renvoie pas un chemin lisible.',
-              style: TextStyle(color: Palette.muted, fontSize: 12.5),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: fieldDecoration(
-                hintText: '/storage/emulated/0/Animes',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Ajouter'),
-          ),
-        ],
-      ),
-    );
-    if (path == null || path.isEmpty) return;
-    if (!Directory(path).existsSync()) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ce dossier est introuvable sur l\'appareil.')),
-      );
-      return;
-    }
-    await _ensurePermissions();
-    await library.addFolder(path);
-    await library.scan();
-  }
-
-  void _openSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
-  }
-
   void _open(Anime anime) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => DetailScreen(anime: anime)),
@@ -147,12 +90,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return AnimatedBuilder(
       animation: library,
       builder: (context, _) {
-        final items = library.view(
-          query: _query,
-          genre: _genre,
-          favoritesOnly: _favoritesOnly,
-        );
-
         return Scaffold(
           appBar: darkAppBar(
             title: Column(
@@ -170,14 +107,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Text('Anime Organizer'),
                   ],
                 ),
-                const Padding(
-                  padding: EdgeInsets.only(left: 33, top: 1),
+                Padding(
+                  padding: const EdgeInsets.only(left: 33, top: 1),
                   child: Text(
-                    'アニメ ライブラリ',
-                    style: TextStyle(
+                    library.animes.isEmpty
+                        ? 'アニメ ライブラリ'
+                        : '${library.animes.length} séries · ${library.totalEpisodes} épisodes',
+                    style: const TextStyle(
                       color: Palette.muted,
                       fontSize: 10.5,
-                      letterSpacing: 1.5,
+                      letterSpacing: 0.8,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
@@ -192,35 +131,174 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               IconButton(
                 tooltip: 'Réglages',
-                onPressed: _openSettings,
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
                 icon: const Icon(Icons.tune),
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: library.busy ? null : _addFolder,
-            backgroundColor: Palette.shu,
-            foregroundColor: Colors.white,
-            icon: const Icon(Icons.create_new_folder_outlined),
-            label: const Text('Ajouter un dossier'),
-          ),
-          body: Column(
-            children: [
-              if (library.busy) _progressBar(),
-              if (library.animes.isNotEmpty) _filters(),
-              Expanded(
-                child: library.animes.isEmpty
-                    ? _emptyState()
-                    : items.isEmpty
-                        ? _noResult()
-                        : _grid(items),
-              ),
-            ],
-          ),
+          floatingActionButton: library.animes.isEmpty
+              ? null
+              : FloatingActionButton(
+                  onPressed: library.busy ? null : _addFolder,
+                  backgroundColor: Palette.shu,
+                  foregroundColor: Colors.white,
+                  child: const Icon(Icons.create_new_folder_outlined),
+                ),
+          body: library.animes.isEmpty && !library.busy
+              ? _emptyState()
+              : Column(
+                  children: [
+                    if (library.busy) _progressBar(),
+                    if (library.animes.isNotEmpty) _filters(),
+                    Expanded(child: _content()),
+                  ],
+                ),
         );
       },
     );
   }
+
+  // ---------------------------------------------------------------- contenu
+
+  Widget _content() {
+    final items = library.view(
+      query: _query,
+      genre: _genre,
+      favoritesOnly: _favoritesOnly,
+    );
+
+    if (items.isEmpty) {
+      return const Center(
+        child: Text('Aucune série ne correspond à ce filtre.',
+            style: TextStyle(color: Palette.muted)),
+      );
+    }
+
+    final resume = library.continueWatching;
+    final favorites = library.favorites;
+    final showSections = !_filtering && library.settings.viewMode != 'genre';
+
+    return CustomScrollView(
+      slivers: [
+        if (showSections && resume.isNotEmpty) ...[
+          _sectionHeader('Continuer à regarder', resume.length),
+          _shelf(resume),
+        ],
+        if (showSections && favorites.isNotEmpty) ...[
+          _sectionHeader('Favoris', favorites.length),
+          _shelf(favorites),
+        ],
+        if (showSections && (resume.isNotEmpty || favorites.isNotEmpty))
+          _sectionHeader('Toute la collection', items.length),
+        if (library.settings.viewMode == 'genre' && !_filtering)
+          ..._genreSections()
+        else if (library.settings.viewMode == 'list')
+          _list(items)
+        else
+          _grid(items),
+        const SliverToBoxAdapter(child: SizedBox(height: 90)),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(String title, int count) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+        child: Row(
+          children: [
+            Container(width: 3, height: 15, color: Palette.shu),
+            const SizedBox(width: 8),
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            Text('$count',
+                style: const TextStyle(color: Palette.muted, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Rangee horizontale : les series en cours et les favoris.
+  Widget _shelf(List<Anime> items) {
+    return SliverToBoxAdapter(
+      child: SizedBox(
+        height: 232,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (context, i) => SizedBox(
+            width: 118,
+            child: AnimeCard(
+              anime: items[i],
+              titleSize: 12.5,
+              onTap: () => _open(items[i]),
+              onFavorite: () => library.toggleFavorite(items[i]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _grid(List<Anime> items) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverLayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.crossAxisExtent;
+          final columns = (width / 170).floor().clamp(2, 8);
+          return SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              childAspectRatio: 0.52,
+              crossAxisSpacing: 14,
+              mainAxisSpacing: 18,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => AnimeCard(
+                anime: items[i],
+                onTap: () => _open(items[i]),
+                onFavorite: () => library.toggleFavorite(items[i]),
+              ),
+              childCount: items.length,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _list(List<Anime> items) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, i) => AnimeRow(anime: items[i], onTap: () => _open(items[i])),
+          childCount: items.length,
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _genreSections() {
+    final grouped = library.groupedByGenre(query: _query);
+    final keys = grouped.keys.toList()..sort();
+    final slivers = <Widget>[];
+    for (final g in keys) {
+      slivers.add(_sectionHeader(g, grouped[g]!.length));
+      slivers.add(_shelf(grouped[g]!));
+    }
+    return slivers;
+  }
+
+  // ---------------------------------------------------------------- filtres
 
   Widget _progressBar() {
     return Padding(
@@ -232,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: const TextStyle(color: Palette.muted, fontSize: 12)),
           const SizedBox(height: 6),
           ClipRRect(
-            borderRadius: BorderRadius.circular(radiusMd),
+            borderRadius: BorderRadius.circular(radiusSm),
             child: LinearProgressIndicator(
               value: library.progress > 0 ? library.progress : null,
               minHeight: 4,
@@ -246,31 +324,40 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _filters() {
-    final genres = library.allGenres;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
       child: Column(
         children: [
-          TextField(
-            controller: _searchController,
-            onChanged: (v) => setState(() => _query = v),
-            decoration: fieldDecoration(
-              hintText: 'Chercher un titre ou un genre',
-              prefixIcon: const Icon(Icons.search, color: Palette.muted),
-              suffixIcon: _query.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(Icons.close, color: Palette.muted),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _query = '');
-                      },
-                    ),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (v) => setState(() => _query = v),
+                  decoration: fieldDecoration(
+                    hintText: 'Chercher un titre ou un genre',
+                    prefixIcon: const Icon(Icons.search,
+                        color: Palette.muted, size: 20),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close,
+                                color: Palette.muted, size: 18),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _viewModeButton(),
+            ],
           ),
           const SizedBox(height: 10),
           SizedBox(
-            height: 34,
+            height: 32,
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
@@ -287,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   selected: _genre.isEmpty,
                   onTap: () => setState(() => _genre = ''),
                 ),
-                for (final g in genres) ...[
+                for (final g in library.allGenres) ...[
                   const SizedBox(width: 8),
                   _chip(
                     label: g,
@@ -298,6 +385,39 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _viewModeButton() {
+    const modes = {
+      'grid': [Icons.grid_view, 'Grille'],
+      'list': [Icons.view_list, 'Liste compacte'],
+      'genre': [Icons.category_outlined, 'Par genre'],
+    };
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Palette.line),
+        borderRadius: BorderRadius.circular(radiusSm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final entry in modes.entries)
+            IconButton(
+              iconSize: 18,
+              visualDensity: VisualDensity.compact,
+              tooltip: entry.value[1] as String,
+              onPressed: () =>
+                  library.updateSettings((s) => s.viewMode = entry.key),
+              icon: Icon(
+                entry.value[0] as IconData,
+                color: library.settings.viewMode == entry.key
+                    ? Palette.shu
+                    : Palette.muted,
+              ),
+            ),
         ],
       ),
     );
@@ -357,44 +477,14 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               labels[library.settings.sortMode] ?? 'A → Z',
               style: const TextStyle(
-                  fontSize: 12.5, color: Palette.text, fontWeight: FontWeight.w500),
+                  fontSize: 12.5,
+                  color: Palette.text,
+                  fontWeight: FontWeight.w500),
             ),
             const SizedBox(width: 4),
             const Icon(Icons.expand_more, size: 16, color: Palette.muted),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _grid(List<Anime> items) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = (constraints.maxWidth / 170).floor().clamp(2, 8);
-        return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            childAspectRatio: 0.52,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 18,
-          ),
-          itemCount: items.length,
-          itemBuilder: (context, i) => AnimeCard(
-            anime: items[i],
-            onTap: () => _open(items[i]),
-            onFavorite: () => library.toggleFavorite(items[i]),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _noResult() {
-    return const Center(
-      child: Text(
-        'Aucune série ne correspond a ce filtre.',
-        style: TextStyle(color: Palette.muted),
       ),
     );
   }
@@ -415,7 +505,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 8),
             const Text(
               'Choisis un dossier contenant tes vidéos. Chaque sous-dossier devient une série, '
-              'et les fiches sont completees automatiquement.',
+              'et les fiches se complètent toutes seules.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Palette.muted, height: 1.4, fontSize: 13.5),
             ),
@@ -425,11 +515,6 @@ class _HomeScreenState extends State<HomeScreen> {
               style: FilledButton.styleFrom(backgroundColor: Palette.shu),
               icon: const Icon(Icons.create_new_folder_outlined),
               label: const Text('Choisir un dossier'),
-            ),
-            TextButton(
-              onPressed: _addFolderManually,
-              child: const Text('Saisir un chemin à la main',
-                  style: TextStyle(color: Palette.kin)),
             ),
           ],
         ),

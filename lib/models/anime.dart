@@ -42,6 +42,14 @@ class Anime {
   int metaFailCount;
   bool favorite;
 
+  /// Chemins des episodes deja regardes.
+  List<String> watchedPaths;
+
+  /// Dernier episode lu et position atteinte, pour la reprise.
+  String? lastEpisodePath;
+  int lastPositionMs;
+  int? lastPlayedAtMs;
+
   List<Episode> episodes;
 
   Anime({
@@ -66,8 +74,13 @@ class Anime {
     this.metaFailed = false,
     this.metaFailCount = 0,
     this.favorite = false,
+    List<String>? watchedPaths,
+    this.lastEpisodePath,
+    this.lastPositionMs = 0,
+    this.lastPlayedAtMs,
     List<Episode>? episodes,
   })  : genres = genres ?? <String>[],
+        watchedPaths = watchedPaths ?? <String>[],
         episodes = episodes ?? <Episode>[];
 
   String get title =>
@@ -77,6 +90,41 @@ class Anime {
       (synopsisTranslated != null && synopsisTranslated!.trim().isNotEmpty)
           ? synopsisTranslated
           : synopsisEn;
+
+  int get watchedCount =>
+      episodes.where((e) => watchedPaths.contains(e.path)).length;
+
+  double get progress =>
+      episodes.isEmpty ? 0 : watchedCount / episodes.length;
+
+  bool get started => lastPlayedAtMs != null || watchedCount > 0;
+  bool get finished => episodes.isNotEmpty && watchedCount == episodes.length;
+
+  bool isWatched(Episode e) => watchedPaths.contains(e.path);
+
+  /// Index du premier episode non vu, ou 0 si la serie est terminee.
+  int get firstUnwatchedIndex {
+    for (var i = 0; i < episodes.length; i++) {
+      if (!watchedPaths.contains(episodes[i].path)) return i;
+    }
+    return 0;
+  }
+
+  /// Episode a relancer : celui qu'on a laisse en cours, sinon le suivant.
+  int get resumeIndex {
+    if (lastEpisodePath != null) {
+      final i = episodes.indexWhere((e) => e.path == lastEpisodePath);
+      if (i >= 0 && !watchedPaths.contains(episodes[i].path)) return i;
+    }
+    return firstUnwatchedIndex;
+  }
+
+  Duration get resumePosition {
+    if (lastEpisodePath == null) return Duration.zero;
+    final i = episodes.indexWhere((e) => e.path == lastEpisodePath);
+    if (i < 0 || i != resumeIndex) return Duration.zero;
+    return Duration(milliseconds: lastPositionMs);
+  }
 
   String get sortKey => title.toLowerCase().replaceAll(RegExp(r'^(the|le|la|les|a|an) '), '');
 
@@ -102,6 +150,10 @@ class Anime {
         'metaFailed': metaFailed,
         'metaFailCount': metaFailCount,
         'favorite': favorite,
+        'watchedPaths': watchedPaths,
+        'lastEpisodePath': lastEpisodePath,
+        'lastPositionMs': lastPositionMs,
+        'lastPlayedAtMs': lastPlayedAtMs,
         'episodes': episodes.map((e) => e.toJson()).toList(),
       };
 
@@ -127,6 +179,11 @@ class Anime {
         metaFailed: j['metaFailed'] as bool? ?? false,
         metaFailCount: j['metaFailCount'] as int? ?? 0,
         favorite: j['favorite'] as bool? ?? false,
+        watchedPaths:
+            (j['watchedPaths'] as List?)?.map((e) => e.toString()).toList(),
+        lastEpisodePath: j['lastEpisodePath'] as String?,
+        lastPositionMs: j['lastPositionMs'] as int? ?? 0,
+        lastPlayedAtMs: j['lastPlayedAtMs'] as int?,
         episodes: (j['episodes'] as List?)
                 ?.map((e) => Episode.fromJson(Map<String, dynamic>.from(e as Map)))
                 .toList() ??

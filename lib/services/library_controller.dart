@@ -24,6 +24,7 @@ class AppSettings {
   bool autoFetch = true;
   bool scanOnStart = true;
   String metaSource = 'auto'; // auto | anilist | jikan
+  String viewMode = 'grid'; // grid | list | genre
   String sortMode = 'alpha'; // alpha | score | year | episodes | recent
 
   Map<String, dynamic> toJson() => {
@@ -36,6 +37,7 @@ class AppSettings {
         'autoFetch': autoFetch,
         'scanOnStart': scanOnStart,
         'metaSource': metaSource,
+        'viewMode': viewMode,
         'sortMode': sortMode,
       };
 
@@ -50,6 +52,7 @@ class AppSettings {
     s.autoFetch = j['autoFetch'] as bool? ?? true;
     s.scanOnStart = j['scanOnStart'] as bool? ?? true;
     s.metaSource = j['metaSource'] as String? ?? 'auto';
+    s.viewMode = j['viewMode'] as String? ?? 'grid';
     s.sortMode = j['sortMode'] as String? ?? 'alpha';
     return s;
   }
@@ -352,6 +355,64 @@ class LibraryController extends ChangeNotifier {
       _report('');
     }
   }
+
+  /// Marque un episode comme vu ou non vu.
+  Future<void> setWatched(Anime anime, Episode episode, bool watched) async {
+    if (watched) {
+      if (!anime.watchedPaths.contains(episode.path)) {
+        anime.watchedPaths.add(episode.path);
+      }
+    } else {
+      anime.watchedPaths.remove(episode.path);
+    }
+    await save();
+    notifyListeners();
+  }
+
+  Future<void> markAllWatched(Anime anime, bool watched) async {
+    anime.watchedPaths = watched ? anime.episodes.map((e) => e.path).toList() : [];
+    await save();
+    notifyListeners();
+  }
+
+  /// Enregistre la position de lecture. Au-dela de 92 % l'episode est
+  /// considere comme vu : le generique de fin ne merite pas d'etre subi.
+  Future<void> savePlayback(
+    Anime anime,
+    Episode episode,
+    Duration position,
+    Duration duration,
+  ) async {
+    anime.lastEpisodePath = episode.path;
+    anime.lastPositionMs = position.inMilliseconds;
+    anime.lastPlayedAtMs = DateTime.now().millisecondsSinceEpoch;
+
+    if (duration.inSeconds > 0 &&
+        position.inMilliseconds / duration.inMilliseconds > 0.92 &&
+        !anime.watchedPaths.contains(episode.path)) {
+      anime.watchedPaths.add(episode.path);
+      anime.lastPositionMs = 0;
+    }
+    await save();
+    notifyListeners();
+  }
+
+  /// Series commencees mais pas terminees, la plus recente en tete.
+  List<Anime> get continueWatching {
+    final list = animes
+        .where((a) => a.started && !a.finished && a.episodes.isNotEmpty)
+        .toList()
+      ..sort((a, b) =>
+          (b.lastPlayedAtMs ?? 0).compareTo(a.lastPlayedAtMs ?? 0));
+    return list.take(12).toList();
+  }
+
+  List<Anime> get favorites =>
+      animes.where((a) => a.favorite).toList()
+        ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
+
+  int get totalEpisodes =>
+      animes.fold<int>(0, (sum, a) => sum + a.episodes.length);
 
   Future<void> toggleFavorite(Anime anime) async {
     anime.favorite = !anime.favorite;
