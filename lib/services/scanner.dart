@@ -84,7 +84,7 @@ class Scanner {
 
       final stream = dir.list(recursive: true, followLinks: false).handleError(
             (Object _) {},
-            test: (Object e) => e is FileSystemException,
+            test: (dynamic e) => e is FileSystemException,
           );
 
       await for (final entity in stream) {
