@@ -10,6 +10,35 @@ import sys
 
 MANIFEST = os.path.join("android", "app", "src", "main", "AndroidManifest.xml")
 
+GROOVY_SNIPPET = """
+// Force chaque module de plugin a compiler contre le SDK 36 (ajout automatique)
+subprojects {
+    afterEvaluate { sub ->
+        if (sub.hasProperty('android')) {
+            sub.android.compileSdkVersion 36
+        }
+    }
+}
+"""
+
+KOTLIN_SNIPPET = """
+// Force chaque module de plugin a compiler contre le SDK 36 (ajout automatique)
+subprojects {
+    afterEvaluate {
+        val androidExt = extensions.findByName("android")
+        if (androidExt != null) {
+            try {
+                androidExt.javaClass
+                    .getMethod("compileSdkVersion", Int::class.javaPrimitiveType)
+                    .invoke(androidExt, 36)
+            } catch (e: Exception) {
+                logger.lifecycle("compileSdk non force pour " + project.name)
+            }
+        }
+    }
+}
+"""
+
 PERMISSIONS = """    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
@@ -73,7 +102,34 @@ def patch_gradle():
     return True
 
 
+
+
+MARKER = "ajout automatique"
+
+
+def patch_root_gradle():
+    """Certains plugins se compilent contre un SDK trop ancien.
+    On impose le SDK 36 a tous les sous-projets depuis le build racine."""
+    for name, snippet in (
+        ("build.gradle", GROOVY_SNIPPET),
+        ("build.gradle.kts", KOTLIN_SNIPPET),
+    ):
+        path = os.path.join("android", name)
+        if not os.path.exists(path):
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        if MARKER in content:
+            print("Build racine deja patche :", path)
+            continue
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(snippet)
+        print("Build racine mis a jour :", path)
+    return True
+
+
 if __name__ == "__main__":
     ok = patch_manifest()
     patch_gradle()
+    patch_root_gradle()
     sys.exit(0 if ok else 1)

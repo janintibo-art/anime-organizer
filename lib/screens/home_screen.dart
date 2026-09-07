@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -9,6 +8,7 @@ import '../models/anime.dart';
 import '../services/library_controller.dart';
 import '../widgets/anime_card.dart';
 import 'detail_screen.dart';
+import 'folder_picker_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -71,14 +71,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _addFolder() async {
     await _ensurePermissions();
-    String? dir;
-    try {
-      dir = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: 'Choisir un dossier d\'animes',
-      );
-    } catch (_) {
-      dir = null;
-    }
+    if (!mounted) return;
+    final dir = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const FolderPickerScreen()),
+    );
     if (dir == null) return;
     await library.addFolder(dir);
     await library.scan();
