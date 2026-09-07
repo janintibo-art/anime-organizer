@@ -138,7 +138,7 @@ class LibraryController extends ChangeNotifier {
       await tmp.rename(f.path);
       saveError = null;
     } catch (e) {
-      saveError = 'La bibliothèque n'a pas pu etre enregistree.';
+      saveError = 'La bibliothèque n\'a pas pu être enregistrée.';
       notifyListeners();
     }
   }
