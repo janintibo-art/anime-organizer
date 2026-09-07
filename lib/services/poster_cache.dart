@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -36,6 +37,20 @@ class PosterCache {
           await http.get(Uri.parse(url)).timeout(const Duration(seconds: 25));
       if (res.statusCode != 200 || res.bodyBytes.length < 1024) return null;
       await file.writeAsBytes(res.bodyBytes, flush: true);
+      return file.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Enregistre une image fournie par le lecteur comme affiche.
+  static Future<String?> saveBytes(String id, Uint8List bytes) async {
+    if (bytes.length < 1024) return null;
+    try {
+      final dir = await _folder();
+      final file = File(p.join(dir.path,
+          'capture-${id.hashCode.toUnsigned(32).toRadixString(16)}.png'));
+      await file.writeAsBytes(bytes, flush: true);
       return file.path;
     } catch (_) {
       return null;

@@ -475,7 +475,8 @@ class _HomeScreenState extends State<HomeScreen> {
       'genre': 'Par genre',
       'score': 'Mieux notés',
       'popularity': 'Les plus connus',
-      'year': 'Plus récents',
+      'recent': 'Récemment ajoutés',
+      'year': 'Année de sortie',
       'episodes': 'Plus d\'épisodes',
     };
     return PopupMenuButton<String>(

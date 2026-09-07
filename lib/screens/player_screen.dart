@@ -9,6 +9,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../main.dart';
 import '../models/anime.dart';
 import '../services/library_controller.dart';
+import '../services/poster_cache.dart';
 
 class PlayerScreen extends StatefulWidget {
   final String title;
@@ -43,6 +44,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   double _rate = 1.0;
   Tracks? _tracks;
   Timer? _autoSave;
+  bool _langApplied = false;
+  String? _notice;
+  Timer? _noticeTimer;
 
   @override
   void initState() {
@@ -72,7 +76,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _index = event.index;
         _position = Duration.zero;
         _duration = Duration.zero;
+        _seeked = true;
+        _langApplied = false;
       });
+      _loadExternalSubtitle();
+      if (library.settings.autoNext) {
+        _flash('Épisode suivant');
+      } else {
+        _player.pause();
+        _flash('Lecture en pause : enchaînement désactivé');
+      }
     }));
 
     _subs.add(_player.stream.position.listen((p) => _position = p));
@@ -86,7 +99,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }));
 
     _subs.add(_player.stream.tracks.listen((t) {
-      if (mounted) setState(() => _tracks = t);
+      if (!mounted) return;
+      setState(() => _tracks = t);
+      _applyPreferredLanguages(t);
     }));
 
     _subs.add(_player.stream.completed.listen((done) {
@@ -94,6 +109,83 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }));
 
     _autoSave = Timer.periodic(const Duration(seconds: 20), (_) => _persist());
+    _loadExternalSubtitle();
+  }
+
+  void _flash(String message) {
+    _noticeTimer?.cancel();
+    setState(() => _notice = message);
+    _noticeTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _notice = null);
+    });
+  }
+
+  /// Charge le .srt ou .ass posé à côté de la vidéo, s'il y en a un.
+  void _loadExternalSubtitle() {
+    if (widget.episodes.isEmpty) return;
+    final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+    if (episode.subtitles.isEmpty) return;
+
+    final preferred = library.settings.preferredSubtitle.toLowerCase();
+    final chosen = episode.subtitles.firstWhere(
+      (path) => preferred.isNotEmpty && path.toLowerCase().contains(preferred),
+      orElse: () => episode.subtitles.first,
+    );
+    Future<void>.delayed(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      _player.setSubtitleTrack(SubtitleTrack.uri(Uri.file(chosen).toString()));
+    });
+  }
+
+  /// Applique les langues préférées dès que les pistes sont connues.
+  void _applyPreferredLanguages(Tracks tracks) {
+    if (_langApplied) return;
+    _langApplied = true;
+    final audioPref = library.settings.preferredAudio.toLowerCase();
+    final subPref = library.settings.preferredSubtitle.toLowerCase();
+
+    if (audioPref.isNotEmpty) {
+      for (final t in tracks.audio) {
+        final lang = t.language ?? '';
+        final title = t.title ?? '';
+        final tag = '$lang $title'.toLowerCase();
+        if (tag.contains(audioPref)) {
+          _player.setAudioTrack(t);
+          break;
+        }
+      }
+    }
+    if (subPref.isNotEmpty) {
+      for (final t in tracks.subtitle) {
+        final lang = t.language ?? '';
+        final title = t.title ?? '';
+        final tag = '$lang $title'.toLowerCase();
+        if (tag.contains(subPref)) {
+          _player.setSubtitleTrack(t);
+          break;
+        }
+      }
+    }
+  }
+
+  /// Capture l'image affichée et la garde comme affiche de la série.
+  Future<void> _useFrameAsPoster() async {
+    final anime = widget.anime;
+    if (anime == null) return;
+    final bytes = await _player.screenshot();
+    if (bytes == null) {
+      _flash('Capture impossible sur cette vidéo.');
+      return;
+    }
+    final path = await PosterCache.saveBytes(anime.id, bytes);
+    if (path == null) {
+      _flash('Enregistrement impossible.');
+      return;
+    }
+    anime.posterPath = path;
+    await library.save();
+    library.refresh();
+    _flash('Affiche mise à jour.');
   }
 
   void _persist({bool forceWatched = false}) {
@@ -111,6 +203,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void dispose() {
     _autoSave?.cancel();
+    _noticeTimer?.cancel();
     _persist();
     for (final s in _subs) {
       s.cancel();
@@ -144,6 +237,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _seekBy(10);
     } else if (key == LogicalKeyboardKey.arrowLeft) {
       _seekBy(-10);
+    } else if (key == LogicalKeyboardKey.keyS) {
+      _seekBy(library.settings.skipIntroSeconds);
     } else if (key == LogicalKeyboardKey.keyN) {
       _player.next();
     } else if (key == LogicalKeyboardKey.keyP) {
@@ -178,6 +273,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           actions: [
+            IconButton(
+              tooltip: 'Passer l\'intro',
+              onPressed: () => _seekBy(library.settings.skipIntroSeconds),
+              icon: const Icon(Icons.fast_forward),
+            ),
+            if (widget.anime != null)
+              IconButton(
+                tooltip: 'Utiliser cette image comme affiche',
+                onPressed: _useFrameAsPoster,
+                icon: const Icon(Icons.image_outlined),
+              ),
             _rateMenu(),
             _trackMenu(),
             if (widget.episodes.length > 1)
@@ -197,10 +303,33 @@ class _PlayerScreenState extends State<PlayerScreen> {
         body: Column(
           children: [
             Expanded(
-              child: Video(
-                controller: _controller,
-                controls: AdaptiveVideoControls,
-                fit: BoxFit.contain,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Video(
+                      controller: _controller,
+                      controls: AdaptiveVideoControls,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  if (_notice != null)
+                    Positioned(
+                      left: 16,
+                      top: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xE60D0B0B),
+                          border: Border.all(color: Palette.shu),
+                          borderRadius: BorderRadius.circular(radiusSm),
+                        ),
+                        child: Text(_notice!,
+                            style: const TextStyle(
+                                color: Palette.text, fontSize: 12.5)),
+                      ),
+                    ),
+                ],
               ),
             ),
             if (widget.episodes.length > 1) _episodeStrip(),

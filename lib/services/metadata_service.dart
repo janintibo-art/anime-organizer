@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../models/anime_meta.dart';
 import 'anilist_api.dart';
 import 'jikan_api.dart';
@@ -55,16 +57,105 @@ class MetadataService {
     return out.take(4).toList();
   }
 
-  /// Essaie plusieurs formulations jusqu'a trouver une fiche.
+  // ------------------------------------------------------- choix du candidat
+
+  static String _normalize(String input) {
+    final plain = stripAccents(input).toLowerCase();
+    return plain.replaceAll(RegExp(r'[^a-z0-9 ]'), ' ').replaceAll(
+        RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// Similarite de Dice sur les paires de lettres : tolerante aux fautes
+  /// de frappe et aux mots en plus, contrairement a une egalite stricte.
+  static double similarity(String a, String b) {
+    final x = _normalize(a);
+    final y = _normalize(b);
+    if (x.isEmpty || y.isEmpty) return 0;
+    if (x == y) return 1;
+    if (x.contains(y) || y.contains(x)) return 0.9;
+
+    Set<String> bigrams(String s) {
+      final out = <String>{};
+      for (var i = 0; i < s.length - 1; i++) {
+        out.add(s.substring(i, i + 2));
+      }
+      return out;
+    }
+
+    final bx = bigrams(x);
+    final by = bigrams(y);
+    if (bx.isEmpty || by.isEmpty) return 0;
+    final common = bx.intersection(by).length;
+    return 2 * common / (bx.length + by.length);
+  }
+
+  /// Note un candidat : ressemblance du titre, nombre d'episodes coherent,
+  /// et penalite pour un film propose face a une serie de fichiers.
+  static double score(AnimeMeta meta, String query, int? fileCount) {
+    var best = similarity(query, meta.title);
+    if (meta.titleRomaji != null) {
+      best = max(best, similarity(query, meta.titleRomaji!));
+    }
+    if (meta.titleNative != null) {
+      best = max(best, similarity(query, meta.titleNative!));
+    }
+
+    var total = best * 100;
+
+    final episodes = meta.episodes;
+    if (fileCount != null && fileCount > 0 && episodes != null && episodes > 0) {
+      final diff = (episodes - fileCount).abs();
+      if (diff == 0) {
+        total += 25;
+      } else if (diff <= 2) {
+        total += 12;
+      } else if (diff > 12) {
+        total -= 12;
+      }
+    }
+
+    final type = (meta.type ?? '').toUpperCase();
+    if (fileCount != null && fileCount > 3 && type == 'MOVIE') total -= 25;
+    if (fileCount == 1 && (type == 'TV' || type == 'ONA')) total -= 8;
+
+    if (meta.popularity != null) {
+      total += min(meta.popularity! / 40000, 5);
+    }
+    return total;
+  }
+
+  /// Essaie plusieurs formulations, note tous les candidats et garde
+  /// le meilleur. Renvoie null si aucun ne ressemble vraiment au titre.
   static Future<AnimeMeta?> smartSearch(
     String title, {
     String source = 'auto',
+    int? episodeCount,
   }) async {
+    AnimeMeta? best;
+    var bestScore = 0.0;
+    var bestSimilarity = 0.0;
+
     for (final query in variants(title)) {
-      final found = await search(query, source: source);
-      if (found != null) return found;
+      final results = await searchMany(query, source: source, limit: 8);
+      for (final candidate in results) {
+        final value = score(candidate, query, episodeCount);
+        final sim = max(
+          similarity(query, candidate.title),
+          candidate.titleRomaji == null
+              ? 0.0
+              : similarity(query, candidate.titleRomaji!),
+        );
+        if (value > bestScore) {
+          bestScore = value;
+          bestSimilarity = sim;
+          best = candidate;
+        }
+      }
+      // Une correspondance franche sur la premiere formulation suffit.
+      if (bestSimilarity >= 0.75) return best;
     }
-    return null;
+
+    return bestSimilarity >= 0.32 ? best : null;
   }
 
   static Future<AnimeMeta?> search(String title, {String source = 'auto'}) async {

@@ -28,6 +28,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _aiEndpoint =
       TextEditingController(text: library.settings.aiEndpoint);
 
+  late final TextEditingController _audioLang =
+      TextEditingController(text: library.settings.preferredAudio);
+  late final TextEditingController _subLang =
+      TextEditingController(text: library.settings.preferredSubtitle);
+
   List<String> _models = [];
   String? _aiMessage;
   bool _aiBusy = false;
@@ -40,6 +45,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _aiKey.dispose();
     _aiModel.dispose();
     _aiEndpoint.dispose();
+    _audioLang.dispose();
+    _subLang.dispose();
     super.dispose();
   }
 
@@ -197,6 +204,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         library.busy ? null : () => library.translateAll(),
                     icon: const Icon(Icons.translate, size: 18),
                     label: const Text('Tout traduire'),
+                  ),
+                ],
+              ),
+              _card(
+                icon: Icons.play_circle_outline,
+                title: 'Lecteur',
+                children: [
+                  _switch(
+                    value: s.autoNext,
+                    onChanged: (v) =>
+                        library.updateSettings((s) => s.autoNext = v),
+                    title: 'Enchaîner les épisodes',
+                    subtitle:
+                        'Sinon la lecture s\'arrête à la fin de chaque épisode.',
+                  ),
+                  _dropdown<int>(
+                    label: 'Bouton « passer l\'intro »',
+                    value: const [60, 85, 90, 120].contains(s.skipIntroSeconds)
+                        ? s.skipIntroSeconds
+                        : 85,
+                    items: const {
+                      60: '60 secondes',
+                      85: '85 secondes (générique classique)',
+                      90: '90 secondes',
+                      120: '2 minutes',
+                    },
+                    onChanged: (v) =>
+                        library.updateSettings((s) => s.skipIntroSeconds = v),
+                  ),
+                  _field(
+                    controller: _audioLang,
+                    label: 'Langue audio préférée',
+                    hint: 'jpn, fre, eng… laisser vide pour ne rien forcer',
+                    onSubmit: (v) =>
+                        library.updateSettings((s) => s.preferredAudio = v),
+                  ),
+                  _field(
+                    controller: _subLang,
+                    label: 'Sous-titres préférés',
+                    hint: 'fr, fre, vostfr…',
+                    onSubmit: (v) =>
+                        library.updateSettings((s) => s.preferredSubtitle = v),
+                  ),
+                  const Text(
+                    'Les fichiers .srt ou .ass posés à côté des vidéos sont chargés automatiquement.',
+                    style: TextStyle(
+                        color: Palette.muted, fontSize: 12, height: 1.4),
                   ),
                 ],
               ),

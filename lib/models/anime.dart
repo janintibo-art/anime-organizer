@@ -9,13 +9,21 @@ class Episode {
   /// OAV, generique, making-of : compte a part, pas dans la numerotation.
   final bool bonus;
 
+  /// Fichiers .srt ou .ass poses a cote de la video.
+  final List<String> subtitles;
+
+  /// Date du fichier, pour le tri « recemment ajoute ».
+  final int? addedAtMs;
+
   const Episode({
     required this.path,
     required this.name,
     this.season,
     this.number,
     this.bonus = false,
-  });
+    List<String>? subtitles,
+    this.addedAtMs,
+  }) : subtitles = subtitles ?? const [];
 
   String get label {
     if (bonus) return name;
@@ -29,6 +37,8 @@ class Episode {
         'season': season,
         'number': number,
         'bonus': bonus,
+        'subtitles': subtitles,
+        'addedAtMs': addedAtMs,
       };
 
   factory Episode.fromJson(Map<String, dynamic> j) => Episode(
@@ -37,6 +47,9 @@ class Episode {
         season: j['season'] as int?,
         number: j['number'] as int?,
         bonus: j['bonus'] as bool? ?? false,
+        subtitles:
+            (j['subtitles'] as List?)?.map((e) => e.toString()).toList(),
+        addedAtMs: j['addedAtMs'] as int?,
       );
 }
 
@@ -142,6 +155,20 @@ class Anime {
       (synopsisTranslated != null && synopsisTranslated!.trim().isNotEmpty)
           ? synopsisTranslated
           : synopsisEn;
+
+  /// Date du fichier le plus recent de la serie.
+  int get newestFileMs {
+    var newest = 0;
+    for (final e in episodes) {
+      if ((e.addedAtMs ?? 0) > newest) newest = e.addedAtMs!;
+    }
+    return newest;
+  }
+
+  /// Titre reduit a l'essentiel, pour reperer les doublons entre dossiers.
+  String get fingerprint => (apiTitle ?? folderTitle)
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   int get watchedCount =>
       episodes.where((e) => watchedPaths.contains(e.path)).length;

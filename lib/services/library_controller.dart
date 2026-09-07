@@ -27,6 +27,12 @@ class AppSettings {
   bool scanOnStart = true;
   bool offlinePosters = true;
 
+  // Lecteur
+  bool autoNext = true;
+  int skipIntroSeconds = 85;
+  String preferredAudio = '';
+  String preferredSubtitle = 'fr';
+
   // Assistant IA
   bool aiEnabled = true;
   String aiProvider = 'groq'; // groq | openrouter | custom
@@ -47,6 +53,10 @@ class AppSettings {
         'autoFetch': autoFetch,
         'scanOnStart': scanOnStart,
         'offlinePosters': offlinePosters,
+        'autoNext': autoNext,
+        'skipIntroSeconds': skipIntroSeconds,
+        'preferredAudio': preferredAudio,
+        'preferredSubtitle': preferredSubtitle,
         'aiEnabled': aiEnabled,
         'aiProvider': aiProvider,
         'aiKey': aiKey,
@@ -68,6 +78,10 @@ class AppSettings {
     s.autoFetch = j['autoFetch'] as bool? ?? true;
     s.scanOnStart = j['scanOnStart'] as bool? ?? true;
     s.offlinePosters = j['offlinePosters'] as bool? ?? true;
+    s.autoNext = j['autoNext'] as bool? ?? true;
+    s.skipIntroSeconds = j['skipIntroSeconds'] as int? ?? 85;
+    s.preferredAudio = j['preferredAudio'] as String? ?? '';
+    s.preferredSubtitle = j['preferredSubtitle'] as String? ?? 'fr';
     s.aiEnabled = j['aiEnabled'] as bool? ?? true;
     s.aiProvider = j['aiProvider'] as String? ?? 'groq';
     s.aiKey = j['aiKey'] as String? ?? '';
@@ -205,8 +219,13 @@ class LibraryController extends ChangeNotifier {
       }
       unreachableFolders = unreachable;
 
-      final found =
-          await Scanner.scanFolders(reachable, onProgress: (m) => _report(m));
+      // Le parcours des dossiers part dans un isolate : sur une carte SD
+      // bien remplie, l'interface reste fluide.
+      _report('Analyse des dossiers');
+      final raw = await compute(Scanner.scanFoldersJson, reachable);
+      final found = raw
+          .map((m) => Anime.fromJson(Map<String, dynamic>.from(m)))
+          .toList();
       final existing = {for (final a in animes) a.id: a};
       final merged = <Anime>[];
       var discovered = 0;
@@ -263,7 +282,11 @@ class LibraryController extends ChangeNotifier {
   /// Recupere image, synopsis et genres pour une serie.
   Future<void> fetchOne(Anime anime, {String? overrideQuery, bool persist = true}) async {
     final query = overrideQuery ?? anime.folderTitle;
-    var meta = await MetadataService.smartSearch(query, source: settings.metaSource);
+    var meta = await MetadataService.smartSearch(
+      query,
+      source: settings.metaSource,
+      episodeCount: anime.episodes.where((e) => !e.bonus).length,
+    );
 
     // Titre francais : on le traduit en anglais et on retente.
     if (meta == null &&
@@ -280,7 +303,8 @@ class LibraryController extends ChangeNotifier {
       );
       if (english != null && english.trim().isNotEmpty) {
         meta = await MetadataService.smartSearch(english,
-            source: settings.metaSource);
+            source: settings.metaSource,
+            episodeCount: anime.episodes.where((e) => !e.bonus).length);
       }
     }
 
@@ -295,11 +319,12 @@ class LibraryController extends ChangeNotifier {
         custom: settings.aiEndpoint,
       );
       if (ai != null && ai.usable) {
+        final count = anime.episodes.where((e) => !e.bonus).length;
         meta = await MetadataService.smartSearch(ai.searchQuery,
-            source: settings.metaSource);
+            source: settings.metaSource, episodeCount: count);
         if (meta == null && ai.english.isNotEmpty) {
           meta = await MetadataService.smartSearch(ai.english,
-              source: settings.metaSource);
+              source: settings.metaSource, episodeCount: count);
         }
       }
     }
@@ -620,6 +645,15 @@ class LibraryController extends ChangeNotifier {
     return done;
   }
 
+  /// Autres dossiers contenant apparemment la même série.
+  List<Anime> duplicatesOf(Anime anime) {
+    final key = anime.fingerprint;
+    if (key.length < 4) return const [];
+    return animes
+        .where((a) => a.id != anime.id && a.fingerprint == key)
+        .toList();
+  }
+
   /// Séries dont la fiche n'a pas pu être identifiée.
   List<Anime> get unmatched =>
       animes.where((a) => !a.metaFetched).toList()
@@ -656,6 +690,9 @@ class LibraryController extends ChangeNotifier {
     switch (settings.sortMode) {
       case 'score':
         list.sort((a, b) => (b.score ?? -1).compareTo(a.score ?? -1));
+        break;
+      case 'recent':
+        list.sort((a, b) => b.newestFileMs.compareTo(a.newestFileMs));
         break;
       case 'popularity':
         list.sort((a, b) => (b.popularity ?? -1).compareTo(a.popularity ?? -1));

@@ -7,6 +7,14 @@ import '../models/anime.dart';
 /// Parcourt les dossiers choisis par l'utilisateur et regroupe les fichiers
 /// video en series.
 class Scanner {
+  /// Version destinee a `compute` : le scan tourne dans un isolate et
+  /// renvoie du JSON, pour ne jamais figer l'interface.
+  static Future<List<Map<String, dynamic>>> scanFoldersJson(
+      List<String> roots) async {
+    final found = await scanFolders(roots);
+    return found.map((a) => a.toJson()).toList();
+  }
+
   static const Set<String> videoExtensions = {
     '.mkv', '.mp4', '.avi', '.mov', '.webm', '.m4v',
     '.flv', '.ts', '.wmv', '.mpg', '.mpeg', '.ogv', '.3gp', '.m2ts',
@@ -41,10 +49,35 @@ class Scanner {
       caseSensitive: false);
   static final RegExp _dashNumber = RegExp(r'[-–—_]\s*0*(\d{1,3})\s*(?:[^\d]|$)');
   static final RegExp _bracketNumber = RegExp(r'[\[(]\s*0*(\d{1,3})\s*[\])]');
+  static const Set<String> subtitleExtensions = {
+    '.srt', '.ass', '.ssa', '.vtt', '.sub', '.idx'
+  };
+
   static final RegExp _bonusWords = RegExp(
       r'\b(oav|ova|ona|nc(?:op|ed)|opening|ending|special|sp\d?|bonus|'
       r'making|pv|trailer|preview|teaser|omake|film|movie)\b',
       caseSensitive: false);
+
+  /// Cherche les sous-titres poses a cote de la video : meme nom de base,
+  /// eventuellement suffixe de la langue (« episode 03.fr.srt »).
+  static List<String> findSubtitles(String filePath) {
+    try {
+      final dir = Directory(p.dirname(filePath));
+      final base = p.basenameWithoutExtension(filePath).toLowerCase();
+      final found = <String>[];
+      for (final entity in dir.listSync(followLinks: false)) {
+        if (entity is! File) continue;
+        final ext = p.extension(entity.path).toLowerCase();
+        if (!subtitleExtensions.contains(ext)) continue;
+        final name = p.basenameWithoutExtension(entity.path).toLowerCase();
+        if (name == base || name.startsWith('$base.')) found.add(entity.path);
+      }
+      found.sort();
+      return found;
+    } catch (_) {
+      return const [];
+    }
+  }
 
   /// Deduit saison, numero et nature du fichier.
   static Episode describe(String filePath, String rootPath) {
@@ -74,12 +107,19 @@ class Scanner {
       if (match != null) number = int.tryParse(match.group(1)!);
     }
 
+    int? modified;
+    try {
+      modified = File(filePath).statSync().modified.millisecondsSinceEpoch;
+    } catch (_) {}
+
     return Episode(
       path: filePath,
       name: name,
       season: season,
       number: bonus ? null : number,
       bonus: bonus,
+      subtitles: findSubtitles(filePath),
+      addedAtMs: modified,
     );
   }
 

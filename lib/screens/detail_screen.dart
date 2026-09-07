@@ -215,9 +215,13 @@ class _DetailScreenState extends State<DetailScreen> {
   /// Petit bilan : trous dans la numérotation, doublons, contenus bonus.
   Widget _healthCard() {
     final issues = anime.issues;
-    if (issues.isEmpty) return const SizedBox.shrink();
+    final twins = library.duplicatesOf(anime);
+    if (issues.isEmpty && twins.isEmpty) return const SizedBox.shrink();
 
     final lines = <String>[];
+    for (final t in twins) {
+      lines.add('Également présent dans ${t.id}');
+    }
     issues.missing.forEach((season, holes) {
       final where = anime.seasons.length > 1 ? 'saison $season : ' : '';
       final list = holes.take(12).join(', ');
