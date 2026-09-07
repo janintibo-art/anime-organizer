@@ -22,9 +22,8 @@ subprojects {
 """
 
 KOTLIN_SNIPPET = """
-// Force chaque module de plugin a compiler contre le SDK 36 (ajout automatique)
 subprojects {
-    afterEvaluate {
+    val forceSdk = {
         val androidExt = extensions.findByName("android")
         if (androidExt != null) {
             try {
@@ -32,11 +31,16 @@ subprojects {
                     .getMethod("compileSdkVersion", Int::class.javaPrimitiveType)
                     .invoke(androidExt, 36)
             } catch (e: Exception) {
-                logger.lifecycle("compileSdk non force pour " + project.name)
             }
         }
     }
+    if (state.executed) {
+        forceSdk()
+    } else {
+        afterEvaluate { forceSdk() }
+    }
 }
+// ajout automatique
 """
 
 PERMISSIONS = """    <uses-permission android:name="android.permission.INTERNET"/>
