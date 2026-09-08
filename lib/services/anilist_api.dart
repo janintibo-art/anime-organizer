@@ -16,6 +16,9 @@ class BrowsePage {
 }
 
 class AniListApi {
+  /// Derniere erreur rencontree, pour le diagnostic des reglages.
+  static String? lastError;
+
   static const String _url = 'https://graphql.anilist.co';
   static DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
   static const Duration _minGap = Duration(milliseconds: 700);
@@ -124,7 +127,10 @@ query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$format:MediaFormat
               Duration(milliseconds: (retry * 1000).round()));
           continue;
         }
-        if (res.statusCode != 200) return const BrowsePage([], false);
+        if (res.statusCode != 200) {
+          lastError = 'HTTP ${res.statusCode} : ${res.body}';
+          return const BrowsePage([], false);
+        }
 
         final body =
             jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
@@ -137,7 +143,8 @@ query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$format:MediaFormat
             .whereType<AnimeMeta>()
             .toList();
         return BrowsePage(items, hasNext);
-      } catch (_) {
+      } catch (e) {
+        lastError = e.toString();
         await Future<void>.delayed(Duration(seconds: 1 + attempt));
       }
     }
@@ -228,7 +235,10 @@ query($id:Int){
               Duration(milliseconds: (retry * 1000).round()));
           continue;
         }
-        if (res.statusCode != 200) return const [];
+        if (res.statusCode != 200) {
+          lastError = 'HTTP ${res.statusCode}';
+          return const [];
+        }
 
         final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
         final page = (body['data'] as Map?)?['Page'] as Map?;
@@ -237,7 +247,8 @@ query($id:Int){
             .map((e) => _map(Map<String, dynamic>.from(e as Map)))
             .whereType<AnimeMeta>()
             .toList();
-      } catch (_) {
+      } catch (e) {
+        lastError = e.toString();
         await Future<void>.delayed(Duration(seconds: 1 + attempt));
       }
     }

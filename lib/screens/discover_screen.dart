@@ -128,7 +128,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       _page++;
       _loading = false;
       if (_items.isEmpty && !hasNext) {
-        _error = 'Aucun résultat. Change de filtre ou réessaie plus tard.';
+        final reason = AniListApi.lastError;
+        _error = reason == null
+            ? 'Aucun résultat. Change de filtre ou réessaie plus tard.'
+            : 'Le catalogue est injoignable.\n\n$reason\n\n'
+                'Lance « Tester la connexion » dans les réglages.';
       }
     });
   }

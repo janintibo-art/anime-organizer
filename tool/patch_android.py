@@ -60,21 +60,37 @@ PERMISSIONS = """    <uses-permission android:name="android.permission.INTERNET"
 
 
 def patch_manifest():
+    """Insere les permissions avant la balise <application>.
+
+    On travaille en expression reguliere plutot qu'en remplacement de texte
+    exact : l'indentation du gabarit Flutter change d'une version a l'autre,
+    et un remplacement rate passait inapercu — l'application se retrouvait
+    alors sans acces reseau ni stockage.
+    """
     if not os.path.exists(MANIFEST):
-        print("Manifeste introuvable :", MANIFEST)
+        print("ERREUR : manifeste introuvable :", MANIFEST)
         return False
 
     with open(MANIFEST, "r", encoding="utf-8") as f:
         content = f.read()
 
     if "MANAGE_EXTERNAL_STORAGE" not in content:
-        content = content.replace("    <application", PERMISSIONS + "    <application", 1)
+        content, count = re.subn(
+            r"([ \t]*)<application",
+            PERMISSIONS + r"\1<application",
+            content,
+            count=1,
+        )
+        if count == 0:
+            print("ERREUR : balise <application> introuvable dans le manifeste.")
+            return False
 
     if "requestLegacyExternalStorage" not in content:
-        content = content.replace(
-            "    <application",
-            '    <application\n        android:requestLegacyExternalStorage="true"',
-            1,
+        content = re.sub(
+            r"<application",
+            '<application\n        android:requestLegacyExternalStorage="true"',
+            content,
+            count=1,
         )
 
     content = re.sub(
@@ -83,7 +99,21 @@ def patch_manifest():
 
     with open(MANIFEST, "w", encoding="utf-8") as f:
         f.write(content)
-    print("Manifeste mis a jour.")
+
+    # Verification explicite : sans ces lignes, l'application est inutilisable.
+    required = [
+        "android.permission.INTERNET",
+        "android.permission.MANAGE_EXTERNAL_STORAGE",
+    ]
+    missing = [r for r in required if r not in content]
+    if missing:
+        print("ERREUR : permissions absentes apres patch :", missing)
+        return False
+
+    print("Manifeste mis a jour. Permissions presentes.")
+    print("----- AndroidManifest.xml -----")
+    print(content)
+    print("-------------------------------")
     return True
 
 

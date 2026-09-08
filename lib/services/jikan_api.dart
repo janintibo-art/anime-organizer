@@ -11,6 +11,9 @@ export '../models/anime_meta.dart';
 /// Le regulateur ci-dessous tient une fenetre glissante des derniers appels
 /// plutot qu'un simple delai fixe, et respecte l'en-tete Retry-After.
 class JikanApi {
+  /// Derniere erreur rencontree, pour le diagnostic des reglages.
+  static String? lastError;
+
   static const String _base = 'https://api.jikan.moe/v4';
 
   static const int _maxPerSecond = 3;
@@ -96,14 +99,18 @@ class JikanApi {
               Duration(milliseconds: (retry * 1000).round()));
           continue;
         }
-        if (res.statusCode != 200) return const [];
+        if (res.statusCode != 200) {
+          lastError = 'HTTP ${res.statusCode}';
+          return const [];
+        }
         final body =
             jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
         final data = body['data'] as List? ?? const [];
         return data
             .map((e) => _map(Map<String, dynamic>.from(e as Map)))
             .toList();
-      } catch (_) {
+      } catch (e) {
+        lastError = e.toString();
         await Future<void>.delayed(Duration(seconds: 1 + attempt));
       }
     }
@@ -134,14 +141,18 @@ class JikanApi {
               Duration(milliseconds: (retry * 1000).round() + attempt * 500));
           continue;
         }
-        if (res.statusCode != 200) return const [];
+        if (res.statusCode != 200) {
+          lastError = 'HTTP ${res.statusCode}';
+          return const [];
+        }
 
         final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
         final data = body['data'] as List? ?? const [];
         return data
             .map((e) => _map(Map<String, dynamic>.from(e as Map)))
             .toList();
-      } catch (_) {
+      } catch (e) {
+        lastError = e.toString();
         await Future<void>.delayed(Duration(seconds: 1 + attempt));
       }
     }

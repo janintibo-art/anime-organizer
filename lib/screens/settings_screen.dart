@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/library_controller.dart';
 import '../services/ai_service.dart';
+import '../services/diagnostics.dart';
 import '../services/poster_cache.dart';
 import 'bulk_fix_screen.dart';
 import 'folder_picker_screen.dart';
@@ -34,6 +35,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       TextEditingController(text: library.settings.preferredSubtitle);
 
   List<String> _models = [];
+  List<String> _diagnostic = [];
+  bool _diagBusy = false;
   String? _aiMessage;
   bool _aiBusy = false;
 
@@ -390,6 +393,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
               _card(
+                icon: Icons.network_check,
+                title: 'Diagnostic',
+                children: [
+                  const Text(
+                    'Vérifie que l\'application atteint bien Internet et les deux bases de données. '
+                    'À lancer si aucune image ni description n\'apparaît.',
+                    style: TextStyle(
+                        color: Palette.muted, fontSize: 12, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _diagBusy ? null : _runDiagnostic,
+                    icon: const Icon(Icons.play_arrow, size: 18),
+                    label: const Text('Tester la connexion'),
+                  ),
+                  if (_diagBusy)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: LinearProgressIndicator(
+                          minHeight: 3,
+                          backgroundColor: Palette.raised,
+                          color: Palette.shu),
+                    ),
+                  for (final line in _diagnostic)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: SelectableText(
+                        line,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: line.contains('OK') ? Palette.kin : Palette.shu,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              _card(
                 icon: Icons.save_outlined,
                 title: 'Sauvegarde',
                 children: [
@@ -525,6 +566,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _runDiagnostic() async {
+    setState(() {
+      _diagBusy = true;
+      _diagnostic = [];
+    });
+    final lines = await Diagnostics.run();
+    lines.addAll(Diagnostics.lastErrors());
+    if (!mounted) return;
+    setState(() {
+      _diagBusy = false;
+      _diagnostic = lines;
+    });
   }
 
   Future<void> _loadModels() async {
