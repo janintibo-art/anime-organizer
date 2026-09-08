@@ -48,6 +48,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   String? _notice;
   Timer? _noticeTimer;
 
+  bool _locked = false;
+  Timer? _sleepTimer;
+  DateTime? _sleepAt;
+  PlaylistMode _loopMode = PlaylistMode.none;
+
   @override
   void initState() {
     super.initState();
@@ -204,6 +209,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     _autoSave?.cancel();
     _noticeTimer?.cancel();
+    _sleepTimer?.cancel();
     _persist();
     for (final s in _subs) {
       s.cancel();
@@ -222,6 +228,47 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _player.seek(target < Duration.zero ? Duration.zero : target);
   }
 
+  BoxFit get _fit {
+    switch (library.settings.videoFit) {
+      case 'cover':
+        return BoxFit.cover;
+      case 'fill':
+        return BoxFit.fill;
+      default:
+        return BoxFit.contain;
+    }
+  }
+
+  /// Minuterie d'arrêt : la lecture se met en pause toute seule.
+  void _setSleepTimer(int? minutes) {
+    _sleepTimer?.cancel();
+    if (minutes == null) {
+      setState(() => _sleepAt = null);
+      _flash('Minuterie annulée.');
+      return;
+    }
+    setState(() => _sleepAt = DateTime.now().add(Duration(minutes: minutes)));
+    _sleepTimer = Timer(Duration(minutes: minutes), () {
+      _player.pause();
+      _persist();
+      if (mounted) {
+        setState(() => _sleepAt = null);
+        _flash('Minuterie écoulée, lecture en pause.');
+      }
+    });
+    _flash('Arrêt automatique dans $minutes minutes.');
+  }
+
+  void _setLoop(PlaylistMode mode) {
+    setState(() => _loopMode = mode);
+    _player.setPlaylistMode(mode);
+    _flash(mode == PlaylistMode.single
+        ? 'Épisode en boucle.'
+        : (mode == PlaylistMode.loop
+            ? 'Série en boucle.'
+            : 'Lecture normale.'));
+  }
+
   void _setRate(double rate) {
     setState(() => _rate = rate);
     _player.setRate(rate);
@@ -234,9 +281,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
       _player.playOrPause();
     } else if (key == LogicalKeyboardKey.arrowRight) {
-      _seekBy(10);
+      _seekBy(library.settings.seekStepSeconds);
     } else if (key == LogicalKeyboardKey.arrowLeft) {
-      _seekBy(-10);
+      _seekBy(-library.settings.seekStepSeconds);
     } else if (key == LogicalKeyboardKey.keyS) {
       _seekBy(library.settings.skipIntroSeconds);
     } else if (key == LogicalKeyboardKey.keyN) {
@@ -274,18 +321,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ),
           actions: [
             IconButton(
-              tooltip: 'Passer l\'intro',
+              tooltip: 'Passer l\'intro (S)',
               onPressed: () => _seekBy(library.settings.skipIntroSeconds),
               icon: const Icon(Icons.fast_forward),
             ),
-            if (widget.anime != null)
-              IconButton(
-                tooltip: 'Utiliser cette image comme affiche',
-                onPressed: _useFrameAsPoster,
-                icon: const Icon(Icons.image_outlined),
-              ),
             _rateMenu(),
-            _trackMenu(),
             if (widget.episodes.length > 1)
               IconButton(
                 tooltip: 'Épisode précédent (P)',
@@ -298,6 +338,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 onPressed: () => _player.next(),
                 icon: const Icon(Icons.skip_next),
               ),
+            IconButton(
+              tooltip: 'Options',
+              onPressed: _openOptions,
+              icon: const Icon(Icons.tune),
+            ),
           ],
         ),
         body: Column(
@@ -308,10 +353,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   Positioned.fill(
                     child: Video(
                       controller: _controller,
-                      controls: AdaptiveVideoControls,
-                      fit: BoxFit.contain,
+                      controls: _locked ? NoVideoControls : AdaptiveVideoControls,
+                      fit: _fit,
+                      subtitleViewConfiguration: SubtitleViewConfiguration(
+                        style: TextStyle(
+                          fontSize: library.settings.subtitleSize,
+                          height: 1.3,
+                          color: Colors.white,
+                          shadows: const [
+                            Shadow(blurRadius: 6, color: Colors.black),
+                            Shadow(blurRadius: 12, color: Colors.black),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
+                  if (_locked)
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: IconButton.filled(
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xCC0D0B0B),
+                        ),
+                        onPressed: () => setState(() => _locked = false),
+                        icon: const Icon(Icons.lock_open,
+                            color: Colors.white),
+                      ),
+                    ),
                   if (_notice != null)
                     Positioned(
                       left: 16,
@@ -333,6 +402,267 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ),
             ),
             if (widget.episodes.length > 1) _episodeStrip(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Panneau d'options : tout ce qui ne merite pas un bouton permanent.
+  void _openOptions() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Palette.surface,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, refresh) {
+          void update(VoidCallback action) {
+            action();
+            refresh(() {});
+            setState(() {});
+          }
+
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Container(width: 3, height: 16, color: Palette.shu),
+                      const SizedBox(width: 8),
+                      const Text('Options de lecture',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  _optionTitle('Ajustement de l\'image'),
+                  _choices(
+                    values: const {
+                      'contain': 'Entière',
+                      'cover': 'Remplir l\'écran',
+                      'fill': 'Étirer',
+                    },
+                    selected: library.settings.videoFit,
+                    onSelected: (v) => update(
+                        () => library.updateSettings((s) => s.videoFit = v)),
+                  ),
+
+                  _optionTitle('Taille des sous-titres'),
+                  _choices(
+                    values: const {
+                      '24': 'Petite',
+                      '32': 'Normale',
+                      '40': 'Grande',
+                      '52': 'Très grande',
+                    },
+                    selected:
+                        library.settings.subtitleSize.round().toString(),
+                    onSelected: (v) => update(() => library.updateSettings(
+                        (s) => s.subtitleSize = double.parse(v))),
+                  ),
+
+                  _optionTitle('Saut des flèches'),
+                  _choices(
+                    values: const {
+                      '5': '5 s',
+                      '10': '10 s',
+                      '30': '30 s',
+                      '60': '1 min',
+                    },
+                    selected: library.settings.seekStepSeconds.toString(),
+                    onSelected: (v) => update(() => library
+                        .updateSettings((s) => s.seekStepSeconds = int.parse(v))),
+                  ),
+
+                  _optionTitle('Répétition'),
+                  _choices(
+                    values: const {
+                      'none': 'Aucune',
+                      'single': 'Épisode',
+                      'loop': 'Série',
+                    },
+                    selected: _loopMode.name,
+                    onSelected: (v) => update(() => _setLoop(
+                          v == 'single'
+                              ? PlaylistMode.single
+                              : v == 'loop'
+                                  ? PlaylistMode.loop
+                                  : PlaylistMode.none,
+                        )),
+                  ),
+
+                  _optionTitle('Minuterie d\'arrêt'),
+                  _choices(
+                    values: const {
+                      '0': 'Aucune',
+                      '15': '15 min',
+                      '30': '30 min',
+                      '60': '1 h',
+                      '90': '1 h 30',
+                    },
+                    selected: _sleepAt == null
+                        ? '0'
+                        : _sleepAt!
+                            .difference(DateTime.now())
+                            .inMinutes
+                            .toString(),
+                    onSelected: (v) => update(() =>
+                        _setSleepTimer(v == '0' ? null : int.parse(v))),
+                  ),
+
+                  const SizedBox(height: 18),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          setState(() => _locked = true);
+                          _flash('Commandes verrouillées.');
+                        },
+                        icon: const Icon(Icons.lock_outline, size: 18),
+                        label: const Text('Verrouiller l\'écran'),
+                      ),
+                      if (widget.anime != null)
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _useFrameAsPoster();
+                          },
+                          icon: const Icon(Icons.image_outlined, size: 18),
+                          label: const Text('Image comme affiche'),
+                        ),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _showTracks();
+                        },
+                        icon: const Icon(Icons.subtitles_outlined, size: 18),
+                        label: const Text('Pistes audio et sous-titres'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Raccourcis clavier : espace pause, flèches déplacement et volume, '
+                    'S passer l\'intro, N et P changer d\'épisode, Échap quitter.',
+                    style: TextStyle(
+                        color: Palette.muted, fontSize: 11.5, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _optionTitle(String label) => Padding(
+        padding: const EdgeInsets.only(top: 6, bottom: 8),
+        child: Text(label,
+            style: const TextStyle(
+                color: Palette.muted, fontSize: 12, letterSpacing: 0.5)),
+      );
+
+  Widget _choices({
+    required Map<String, String> values,
+    required String selected,
+    required ValueChanged<String> onSelected,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final entry in values.entries)
+          GestureDetector(
+            onTap: () => onSelected(entry.key),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: selected == entry.key
+                    ? Palette.shu
+                    : Colors.transparent,
+                border: Border.all(
+                    color: selected == entry.key
+                        ? Palette.shu
+                        : Palette.line),
+                borderRadius: BorderRadius.circular(radiusSm),
+              ),
+              child: Text(
+                entry.value,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: selected == entry.key
+                      ? Colors.white
+                      : Palette.muted,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Les pistes restent dans une feuille dediee : leur nombre varie.
+  void _showTracks() {
+    final tracks = _tracks;
+    if (tracks == null) {
+      _flash('Pistes pas encore connues.');
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Palette.surface,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text('Audio',
+                  style: TextStyle(color: Palette.muted, fontSize: 12)),
+            ),
+            for (final t in tracks.audio.where((t) => t.id != 'auto'))
+              ListTile(
+                dense: true,
+                title: Text(_trackLabel(t, 'Piste ${t.id}'),
+                    style: const TextStyle(fontSize: 13.5)),
+                trailing: _player.state.track.audio.id == t.id
+                    ? const Icon(Icons.check, color: Palette.shu, size: 18)
+                    : null,
+                onTap: () {
+                  _player.setAudioTrack(t);
+                  Navigator.pop(ctx);
+                },
+              ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Text('Sous-titres',
+                  style: TextStyle(color: Palette.muted, fontSize: 12)),
+            ),
+            for (final t in tracks.subtitle)
+              ListTile(
+                dense: true,
+                title: Text(
+                    t.id == 'no' ? 'Aucun' : _trackLabel(t, 'Piste ${t.id}'),
+                    style: const TextStyle(fontSize: 13.5)),
+                trailing: _player.state.track.subtitle.id == t.id
+                    ? const Icon(Icons.check, color: Palette.shu, size: 18)
+                    : null,
+                onTap: () {
+                  _player.setSubtitleTrack(t);
+                  Navigator.pop(ctx);
+                },
+              ),
           ],
         ),
       ),
@@ -383,62 +713,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     if (language != null && language.isNotEmpty) return language;
     return fallback;
-  }
-
-  Widget _trackMenu() {
-    final tracks = _tracks;
-    if (tracks == null) return const SizedBox.shrink();
-
-    final audio = tracks.audio.where((t) => t.id != 'auto').toList();
-    final subs = tracks.subtitle.toList();
-
-    return PopupMenuButton<void>(
-      color: Palette.surface,
-      tooltip: 'Pistes audio et sous-titres',
-      icon: const Icon(Icons.subtitles_outlined),
-      itemBuilder: (_) => [
-        if (audio.isNotEmpty) ...[
-          const PopupMenuItem(
-            enabled: false,
-            child: Text('Audio',
-                style: TextStyle(color: Palette.muted, fontSize: 11.5)),
-          ),
-          for (final t in audio)
-            PopupMenuItem(
-              onTap: () => _player.setAudioTrack(t),
-              child: Text(
-                _trackLabel(t, 'Piste ${t.id}'),
-                style: TextStyle(
-                  color: _player.state.track.audio.id == t.id
-                      ? Palette.shu
-                      : Palette.text,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-        ],
-        if (subs.isNotEmpty) ...[
-          const PopupMenuItem(
-            enabled: false,
-            child: Text('Sous-titres',
-                style: TextStyle(color: Palette.muted, fontSize: 11.5)),
-          ),
-          for (final t in subs)
-            PopupMenuItem(
-              onTap: () => _player.setSubtitleTrack(t),
-              child: Text(
-                t.id == 'no' ? 'Aucun' : _trackLabel(t, 'Piste ${t.id}'),
-                style: TextStyle(
-                  color: _player.state.track.subtitle.id == t.id
-                      ? Palette.shu
-                      : Palette.text,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-        ],
-      ],
-    );
   }
 
   Widget _episodeStrip() {

@@ -184,19 +184,13 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
 
   Widget _banner() {
     return SliverAppBar(
-      expandedHeight: 250,
+      expandedHeight: 320,
       pinned: true,
       backgroundColor: Palette.ink,
       surfaceTintColor: Colors.transparent,
-      foregroundColor: Palette.text,
+      foregroundColor: Colors.white,
       flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 14),
-        title: Text(
-          meta.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        ),
+        collapseMode: CollapseMode.parallax,
         background: Stack(
           fit: StackFit.expand,
           children: [
@@ -209,14 +203,84 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
               )
             else
               Container(color: Palette.surface),
-            Container(color: const Color(0x99000000)),
-            Container(
-              decoration: const BoxDecoration(
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 110,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xB3000000), Color(0x00000000)],
+                  ),
+                ),
+              ),
+            ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [Palette.ink, Color(0x000D0B0B)],
+                  stops: [0.0, 0.30, 0.62],
+                  colors: [
+                    Palette.ink,
+                    Color(0xE60D0B0B),
+                    Color(0x000D0B0B),
+                  ],
                 ),
+              ),
+            ),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 14,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (meta.imageUrl != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(radiusMd),
+                      child: SizedBox(
+                        width: 84,
+                        height: 118,
+                        child: CachedNetworkImage(
+                            imageUrl: meta.imageUrl!, fit: BoxFit.cover),
+                      ),
+                    ),
+                  if (meta.imageUrl != null) const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (meta.titleNative != null &&
+                            meta.titleNative!.trim().isNotEmpty)
+                          Text(
+                            meta.titleNative!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Palette.muted, fontSize: 12),
+                          ),
+                        const SizedBox(height: 3),
+                        Text(
+                          meta.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            height: 1.15,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.4,
+                            color: Palette.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

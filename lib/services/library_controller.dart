@@ -35,6 +35,9 @@ class AppSettings {
   // Lecteur
   bool autoNext = true;
   int skipIntroSeconds = 85;
+  int seekStepSeconds = 10;
+  double subtitleSize = 32;
+  String videoFit = 'contain'; // contain | cover | fill
   String preferredAudio = '';
   String preferredSubtitle = 'fr';
 
@@ -64,6 +67,9 @@ class AppSettings {
         'indexRepo': indexRepo,
         'autoNext': autoNext,
         'skipIntroSeconds': skipIntroSeconds,
+        'seekStepSeconds': seekStepSeconds,
+        'subtitleSize': subtitleSize,
+        'videoFit': videoFit,
         'preferredAudio': preferredAudio,
         'preferredSubtitle': preferredSubtitle,
         'aiEnabled': aiEnabled,
@@ -92,6 +98,9 @@ class AppSettings {
     s.indexRepo = j['indexRepo'] as String? ?? AnimeIndex.defaultRepo;
     s.autoNext = j['autoNext'] as bool? ?? true;
     s.skipIntroSeconds = j['skipIntroSeconds'] as int? ?? 85;
+    s.seekStepSeconds = j['seekStepSeconds'] as int? ?? 10;
+    s.subtitleSize = (j['subtitleSize'] as num?)?.toDouble() ?? 32;
+    s.videoFit = j['videoFit'] as String? ?? 'contain';
     s.preferredAudio = j['preferredAudio'] as String? ?? '';
     s.preferredSubtitle = j['preferredSubtitle'] as String? ?? 'fr';
     s.aiEnabled = j['aiEnabled'] as bool? ?? true;
@@ -786,6 +795,29 @@ class LibraryController extends ChangeNotifier {
     return animes
         .where((a) => a.id != anime.id && a.fingerprint == key)
         .toList();
+  }
+
+  /// Repasse les fiches déjà enregistrées dans la table de traduction.
+  /// Utile après une mise à jour du vocabulaire : sans ça, les anciennes
+  /// fiches gardent leurs genres en anglais.
+  Future<int> relabelAll() async {
+    var changed = 0;
+    for (final a in animes) {
+      final genres = Labels.genres(a.genres);
+      final type = Labels.format(a.type);
+      final status = Labels.status(a.status);
+      if (genres.join('|') != a.genres.join('|') ||
+          type != a.type ||
+          status != a.status) {
+        a.genres = genres;
+        a.type = type;
+        a.status = status;
+        changed++;
+      }
+    }
+    if (changed > 0) await save();
+    notifyListeners();
+    return changed;
   }
 
   /// Séries dont la fiche n'a pas pu être identifiée.

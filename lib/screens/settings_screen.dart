@@ -197,6 +197,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         label: Text(
                             'Corriger ${library.unmatched.length} fiche(s)'),
                       ),
+                      OutlinedButton.icon(
+                        onPressed: _relabel,
+                        icon: const Icon(Icons.g_translate, size: 18),
+                        label: const Text('Retraduire les fiches existantes'),
+                      ),
                     ],
                   ),
                 ],
@@ -759,6 +764,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _refreshIndexSize();
     if (!mounted) return;
     setState(() => _indexMessage = 'Index supprimé.');
+  }
+
+  Future<void> _relabel() async {
+    final changed = await library.relabelAll();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(changed == 0
+            ? 'Toutes les fiches sont déjà en français.'
+            : '$changed fiche(s) mise(s) à jour.'),
+      ),
+    );
   }
 
   Future<void> _forgetTitles() async {

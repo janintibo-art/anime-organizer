@@ -417,81 +417,131 @@ class _DetailScreenState extends State<DetailScreen> {
 
   Widget _banner() {
     return SliverAppBar(
-      expandedHeight: 268,
+      expandedHeight: 320,
       pinned: true,
       backgroundColor: Palette.ink,
       surfaceTintColor: Colors.transparent,
-      foregroundColor: Palette.text,
+      foregroundColor: Colors.white,
       actions: [
         IconButton(
           onPressed: () => library.toggleFavorite(anime),
           icon: Icon(
             anime.favorite ? Icons.favorite : Icons.favorite_border,
-            color: anime.favorite ? Palette.sakura : Palette.text,
+            color: anime.favorite ? Palette.sakura : Colors.white,
           ),
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 14),
-        title: Text(
-          anime.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        ),
+        collapseMode: CollapseMode.parallax,
         background: Stack(
           fit: StackFit.expand,
           children: [
+            // L'image garde ses couleurs : plus d'aplat noir par-dessus.
             PosterImage(
               anime: anime,
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
             ),
-            // L'affiche sert de decor : on l'assombrit pour garder le texte lisible.
-            Container(color: const Color(0x99000000)),
-            Container(
-              decoration: const BoxDecoration(
+            // Voile discret en haut, juste pour detacher les boutons.
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 110,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xB3000000), Color(0x00000000)],
+                  ),
+                ),
+              ),
+            ),
+            // Degrade bas : le texte reste lisible sans ternir l'affiche.
+            const DecoratedBox(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [Palette.ink, Color(0x000D0B0B)],
+                  stops: [0.0, 0.30, 0.62],
+                  colors: [
+                    Palette.ink,
+                    Color(0xE60D0B0B),
+                    Color(0x000D0B0B),
+                  ],
                 ),
               ),
             ),
             Positioned(
               left: 16,
               right: 16,
-              bottom: 52,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              bottom: 14,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (anime.nativeTitle != null &&
-                      anime.nativeTitle!.trim().isNotEmpty)
-                    Text(
-                      anime.nativeTitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Palette.muted, fontSize: 12.5),
-                    ),
-                  if (anime.progress > 0) ...[
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: anime.progress,
-                        minHeight: 4,
-                        backgroundColor: const Color(0x55FFFFFF),
-                        color: anime.finished ? Palette.kin : Palette.shu,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(radiusMd),
+                    child: Container(
+                      width: 84,
+                      height: 118,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0x33FFFFFF)),
+                        borderRadius: BorderRadius.circular(radiusMd),
                       ),
+                      child: PosterImage(anime: anime, iconSize: 24),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '${anime.watchedCount} sur ${anime.episodes.length} épisodes vus',
-                      style: const TextStyle(
-                          color: Palette.muted, fontSize: 11.5),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (anime.nativeTitle != null &&
+                            anime.nativeTitle!.trim().isNotEmpty)
+                          Text(
+                            anime.nativeTitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Palette.muted, fontSize: 12),
+                          ),
+                        const SizedBox(height: 3),
+                        Text(
+                          anime.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            height: 1.15,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.4,
+                            color: Palette.text,
+                          ),
+                        ),
+                        if (anime.progress > 0) ...[
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: LinearProgressIndicator(
+                              value: anime.progress,
+                              minHeight: 4,
+                              backgroundColor: const Color(0x55FFFFFF),
+                              color:
+                                  anime.finished ? Palette.kin : Palette.shu,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${anime.watchedCount} sur ${anime.episodes.length} épisodes vus',
+                            style: const TextStyle(
+                                color: Palette.muted, fontSize: 11),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
