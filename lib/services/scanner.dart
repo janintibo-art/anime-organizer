@@ -53,6 +53,10 @@ class Scanner {
     '.srt', '.ass', '.ssa', '.vtt', '.sub', '.idx'
   };
 
+  static const Set<String> audioExtensions = {
+    '.mka', '.aac', '.ac3', '.eac3', '.dts', '.flac', '.mp3', '.opus', '.m4a'
+  };
+
   static final RegExp _bonusWords = RegExp(
       r'\b(oav|ova|ona|nc(?:op|ed)|opening|ending|special|sp\d?|bonus|'
       r'making|pv|trailer|preview|teaser|omake|film|movie)\b',
@@ -69,6 +73,26 @@ class Scanner {
         if (entity is! File) continue;
         final ext = p.extension(entity.path).toLowerCase();
         if (!subtitleExtensions.contains(ext)) continue;
+        final name = p.basenameWithoutExtension(entity.path).toLowerCase();
+        if (name == base || name.startsWith('$base.')) found.add(entity.path);
+      }
+      found.sort();
+      return found;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Cherche les pistes audio livrees a part, meme nom de base.
+  static List<String> findExternalAudio(String filePath) {
+    try {
+      final dir = Directory(p.dirname(filePath));
+      final base = p.basenameWithoutExtension(filePath).toLowerCase();
+      final found = <String>[];
+      for (final entity in dir.listSync(followLinks: false)) {
+        if (entity is! File) continue;
+        final ext = p.extension(entity.path).toLowerCase();
+        if (!audioExtensions.contains(ext)) continue;
         final name = p.basenameWithoutExtension(entity.path).toLowerCase();
         if (name == base || name.startsWith('$base.')) found.add(entity.path);
       }
@@ -119,6 +143,7 @@ class Scanner {
       number: bonus ? null : number,
       bonus: bonus,
       subtitles: findSubtitles(filePath),
+      externalAudio: findExternalAudio(filePath),
       addedAtMs: modified,
     );
   }

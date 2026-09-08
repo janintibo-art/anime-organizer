@@ -12,6 +12,10 @@ class Episode {
   /// Fichiers .srt ou .ass poses a cote de la video.
   final List<String> subtitles;
 
+  /// Fichiers audio separes portant le meme nom : une piste de doublage
+  /// livree a part se charge alors avec la video.
+  final List<String> externalAudio;
+
   /// Date du fichier, pour le tri « recemment ajoute ».
   final int? addedAtMs;
 
@@ -22,8 +26,10 @@ class Episode {
     this.number,
     this.bonus = false,
     List<String>? subtitles,
+    List<String>? externalAudio,
     this.addedAtMs,
-  }) : subtitles = subtitles ?? const [];
+  })  : subtitles = subtitles ?? const [],
+        externalAudio = externalAudio ?? const [];
 
   String get label {
     if (bonus) return name;
@@ -38,6 +44,7 @@ class Episode {
         'number': number,
         'bonus': bonus,
         'subtitles': subtitles,
+        'externalAudio': externalAudio,
         'addedAtMs': addedAtMs,
       };
 
@@ -49,6 +56,8 @@ class Episode {
         bonus: j['bonus'] as bool? ?? false,
         subtitles:
             (j['subtitles'] as List?)?.map((e) => e.toString()).toList(),
+        externalAudio:
+            (j['externalAudio'] as List?)?.map((e) => e.toString()).toList(),
         addedAtMs: j['addedAtMs'] as int?,
       );
 }

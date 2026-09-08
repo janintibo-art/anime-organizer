@@ -37,6 +37,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       TextEditingController(text: library.settings.preferredSubtitle);
   late final TextEditingController _tmdbKey =
       TextEditingController(text: library.settings.tmdbKey);
+  late final TextEditingController _subKey =
+      TextEditingController(text: library.settings.subtitleKey);
+  late final TextEditingController _subUser =
+      TextEditingController(text: library.settings.subtitleUser);
+  late final TextEditingController _subPass =
+      TextEditingController(text: library.settings.subtitlePassword);
 
   List<String> _models = [];
   List<String> _diagnostic = [];
@@ -71,6 +77,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _audioLang.dispose();
     _subLang.dispose();
     _tmdbKey.dispose();
+    _subKey.dispose();
+    _subUser.dispose();
+    _subPass.dispose();
     super.dispose();
   }
 
@@ -317,10 +326,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         library.updateSettings((s) => s.preferredSubtitle = v),
                   ),
                   const Text(
-                    'Les fichiers .srt ou .ass posés à côté des vidéos sont chargés automatiquement.',
+                    'Les fichiers .srt ou .ass posés à côté des vidéos sont chargés '
+                    'automatiquement, ainsi que les pistes audio livrées à part.',
                     style: TextStyle(
                         color: Palette.muted, fontSize: 12, height: 1.4),
                   ),
+                  const Divider(color: Palette.line, height: 28),
+                  const Text('Sous-titres en ligne',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Quand un épisode n\'a pas de sous-titres dans ta langue, '
+                    'ils sont cherchés sur OpenSubtitles. La recherche utilise '
+                    'l\'empreinte du fichier, ce qui donne des sous-titres '
+                    'réellement synchronisés.',
+                    style: TextStyle(
+                        color: Palette.muted, fontSize: 12, height: 1.4),
+                  ),
+                  const SizedBox(height: 10),
+                  _switch(
+                    value: s.autoFetchSubtitles,
+                    onChanged: (v) => library
+                        .updateSettings((s) => s.autoFetchSubtitles = v),
+                    title: 'Chercher automatiquement',
+                    subtitle:
+                        'Sinon, le bouton reste disponible dans les options du lecteur.',
+                  ),
+                  _field(
+                    controller: _subKey,
+                    label: 'Clé OpenSubtitles',
+                    hint: 'opensubtitles.com — compte gratuit, section API',
+                    obscure: true,
+                    onSubmit: (v) =>
+                        library.updateSettings((s) => s.subtitleKey = v),
+                  ),
+                  _field(
+                    controller: _subUser,
+                    label: 'Identifiant (facultatif)',
+                    hint: 'Augmente le quota de téléchargement quotidien',
+                    onSubmit: (v) =>
+                        library.updateSettings((s) => s.subtitleUser = v),
+                  ),
+                  if (s.subtitleUser.trim().isNotEmpty)
+                    _field(
+                      controller: _subPass,
+                      label: 'Mot de passe',
+                      hint: 'Utilisé uniquement pour la connexion',
+                      obscure: true,
+                      onSubmit: (v) => library
+                          .updateSettings((s) => s.subtitlePassword = v),
+                    ),
                 ],
               ),
               _card(

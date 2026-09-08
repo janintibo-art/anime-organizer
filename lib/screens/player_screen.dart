@@ -9,7 +9,9 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../main.dart';
 import '../models/anime.dart';
 import '../services/library_controller.dart';
+import '../services/opensubtitles_api.dart';
 import '../services/poster_cache.dart';
+import '../services/video_hash.dart';
 
 class PlayerScreen extends StatefulWidget {
   final String title;
@@ -52,6 +54,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _sleepTimer;
   DateTime? _sleepAt;
   PlaylistMode _loopMode = PlaylistMode.none;
+  bool _subtitleSearchDone = false;
+  bool _searchingSubtitles = false;
 
   @override
   void initState() {
@@ -83,8 +87,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _duration = Duration.zero;
         _seeked = true;
         _langApplied = false;
+        _subtitleSearchDone = false;
       });
       _loadExternalSubtitle();
+      _loadExternalAudio();
       if (library.settings.autoNext) {
         _flash('Épisode suivant');
       } else {
@@ -115,6 +121,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _autoSave = Timer.periodic(const Duration(seconds: 20), (_) => _persist());
     _loadExternalSubtitle();
+    _loadExternalAudio();
   }
 
   void _flash(String message) {
@@ -142,6 +149,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
   }
 
+  /// Charge une piste audio livrée dans un fichier séparé, si elle existe.
+  void _loadExternalAudio() {
+    if (widget.episodes.isEmpty) return;
+    final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+    if (episode.externalAudio.isEmpty) return;
+
+    final preferred = library.settings.preferredAudio.toLowerCase();
+    final chosen = episode.externalAudio.firstWhere(
+      (path) => preferred.isNotEmpty && path.toLowerCase().contains(preferred),
+      orElse: () => episode.externalAudio.first,
+    );
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      _player.setAudioTrack(AudioTrack.uri(Uri.file(chosen).toString()));
+      _flash('Piste audio externe chargée.');
+    });
+  }
+
   /// Applique les langues préférées dès que les pistes sont connues.
   void _applyPreferredLanguages(Tracks tracks) {
     if (_langApplied) return;
@@ -160,6 +185,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       }
     }
+    var subtitleFound = false;
     if (subPref.isNotEmpty) {
       for (final t in tracks.subtitle) {
         final lang = t.language ?? '';
@@ -167,10 +193,165 @@ class _PlayerScreenState extends State<PlayerScreen> {
         final tag = '$lang $title'.toLowerCase();
         if (tag.contains(subPref)) {
           _player.setSubtitleTrack(t);
+          subtitleFound = true;
           break;
         }
       }
     }
+
+    _reportMissing(tracks, audioPref, subtitleFound, subPref);
+  }
+
+  /// Signale ce que le fichier ne contient pas, et va chercher les
+  /// sous-titres en ligne si la recherche automatique est activée.
+  void _reportMissing(
+    Tracks tracks,
+    String audioPref,
+    bool subtitleFound,
+    String subPref,
+  ) {
+    final episode = widget.episodes.isEmpty
+        ? null
+        : widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+
+    final hasLocalSubtitle =
+        episode != null && episode.subtitles.isNotEmpty;
+
+    if (!subtitleFound && !hasLocalSubtitle && subPref.isNotEmpty) {
+      if (library.settings.autoFetchSubtitles &&
+          library.settings.subtitleKey.trim().isNotEmpty) {
+        _fetchSubtitles(auto: true);
+      } else {
+        _flash('Aucun sous-titre « $subPref » dans ce fichier.');
+      }
+    }
+
+    if (audioPref.isNotEmpty) {
+      final languages = tracks.audio
+          .where((t) => t.id != 'auto')
+          .map((t) => (t.language ?? t.title ?? '').toLowerCase())
+          .where((l) => l.isNotEmpty)
+          .toList();
+      final hasPreferred = languages.any((l) => l.contains(audioPref));
+      if (!hasPreferred && languages.isNotEmpty) {
+        _flash('Audio disponible : ${languages.join(', ')}.');
+      }
+    }
+  }
+
+  /// Cherche des sous-titres sur OpenSubtitles pour l'épisode en cours.
+  Future<void> _fetchSubtitles({bool auto = false}) async {
+    if (_searchingSubtitles || widget.episodes.isEmpty) return;
+    if (auto && _subtitleSearchDone) return;
+    _subtitleSearchDone = true;
+
+    final key = library.settings.subtitleKey.trim();
+    if (key.isEmpty) {
+      _flash('Renseigne une clé OpenSubtitles dans les réglages.');
+      return;
+    }
+
+    setState(() => _searchingSubtitles = true);
+    _flash('Recherche de sous-titres…');
+
+    final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+    final anime = widget.anime;
+    final query = anime?.romajiTitle?.isNotEmpty == true
+        ? anime!.romajiTitle!
+        : (anime?.title ?? widget.title);
+
+    if (library.settings.subtitleUser.trim().isNotEmpty) {
+      await OpenSubtitles.login(key, library.settings.subtitleUser,
+          library.settings.subtitlePassword);
+    }
+
+    final hash = await VideoHash.compute(episode.path);
+    final results = await OpenSubtitles.search(
+      apiKey: key,
+      query: query,
+      language: library.settings.preferredSubtitle.isEmpty
+          ? 'fr'
+          : library.settings.preferredSubtitle,
+      season: episode.season,
+      episode: episode.number,
+      moviehash: hash,
+    );
+
+    if (!mounted) return;
+    setState(() => _searchingSubtitles = false);
+
+    if (results.isEmpty) {
+      _flash(OpenSubtitles.lastError ?? 'Aucun sous-titre trouvé.');
+      return;
+    }
+
+    // En automatique on prend le meilleur, sinon on laisse choisir.
+    if (auto) {
+      await _applySubtitle(results.first, key);
+    } else {
+      _pickSubtitle(results, key);
+    }
+  }
+
+  Future<void> _applySubtitle(SubtitleResult result, String key) async {
+    _flash('Téléchargement du sous-titre…');
+    final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+    final path = await OpenSubtitles.download(
+      apiKey: key,
+      result: result,
+      episodePath: episode.path,
+    );
+    if (!mounted) return;
+    if (path == null) {
+      _flash(OpenSubtitles.lastError ?? 'Téléchargement impossible.');
+      return;
+    }
+    _player.setSubtitleTrack(SubtitleTrack.uri(Uri.file(path).toString()));
+    final left = OpenSubtitles.remainingDownloads;
+    _flash(left == null
+        ? 'Sous-titre chargé.'
+        : 'Sous-titre chargé · $left téléchargement(s) restant(s) aujourd\'hui.');
+  }
+
+  void _pickSubtitle(List<SubtitleResult> results, String key) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Palette.surface,
+      builder: (ctx) => SafeArea(
+        child: ListView.builder(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          itemCount: results.length,
+          itemBuilder: (_, i) {
+            final r = results[i];
+            return ListTile(
+              dense: true,
+              leading: Icon(
+                r.fromHash ? Icons.verified : Icons.subtitles_outlined,
+                color: r.fromHash ? Palette.kin : Palette.muted,
+                size: 20,
+              ),
+              title: Text(r.release,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13)),
+              subtitle: Text(
+                r.fromHash
+                    ? 'Synchronisé avec ton fichier'
+                    : '${r.downloads} téléchargements',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: r.fromHash ? Palette.kin : Palette.muted),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _applySubtitle(r, key);
+              },
+            );
+          },
+        ),
+      ),
+    );
   }
 
   /// Capture l'image affichée et la garde comme affiche de la série.
@@ -545,6 +726,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         },
                         icon: const Icon(Icons.subtitles_outlined, size: 18),
                         label: const Text('Pistes audio et sous-titres'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _searchingSubtitles
+                            ? null
+                            : () {
+                                Navigator.pop(ctx);
+                                _fetchSubtitles();
+                              },
+                        icon: const Icon(Icons.travel_explore, size: 18),
+                        label: const Text('Chercher des sous-titres en ligne'),
                       ),
                     ],
                   ),

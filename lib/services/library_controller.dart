@@ -40,6 +40,10 @@ class AppSettings {
   String videoFit = 'contain'; // contain | cover | fill
   String preferredAudio = '';
   String preferredSubtitle = 'fr';
+  bool autoFetchSubtitles = true;
+  String subtitleKey = '';
+  String subtitleUser = '';
+  String subtitlePassword = '';
 
   // Assistant IA
   bool aiEnabled = true;
@@ -72,6 +76,10 @@ class AppSettings {
         'videoFit': videoFit,
         'preferredAudio': preferredAudio,
         'preferredSubtitle': preferredSubtitle,
+        'autoFetchSubtitles': autoFetchSubtitles,
+        'subtitleKey': subtitleKey,
+        'subtitleUser': subtitleUser,
+        'subtitlePassword': subtitlePassword,
         'aiEnabled': aiEnabled,
         'aiProvider': aiProvider,
         'aiKey': aiKey,
@@ -103,6 +111,10 @@ class AppSettings {
     s.videoFit = j['videoFit'] as String? ?? 'contain';
     s.preferredAudio = j['preferredAudio'] as String? ?? '';
     s.preferredSubtitle = j['preferredSubtitle'] as String? ?? 'fr';
+    s.autoFetchSubtitles = j['autoFetchSubtitles'] as bool? ?? true;
+    s.subtitleKey = j['subtitleKey'] as String? ?? '';
+    s.subtitleUser = j['subtitleUser'] as String? ?? '';
+    s.subtitlePassword = j['subtitlePassword'] as String? ?? '';
     s.aiEnabled = j['aiEnabled'] as bool? ?? true;
     s.aiProvider = j['aiProvider'] as String? ?? 'groq';
     s.aiKey = j['aiKey'] as String? ?? '';
