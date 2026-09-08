@@ -4,6 +4,7 @@ import '../main.dart';
 import '../services/library_controller.dart';
 import '../services/ai_service.dart';
 import '../services/diagnostics.dart';
+import '../services/anime_index.dart';
 import '../services/seed_database.dart';
 import '../services/poster_cache.dart';
 import 'bulk_fix_screen.dart';
@@ -40,6 +41,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<String> _models = [];
   List<String> _diagnostic = [];
   bool _diagBusy = false;
+
+  bool _indexBusy = false;
+  double _indexProgress = 0;
+  String? _indexMessage;
+  int _indexBytes = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshIndexSize();
+  }
+
+  Future<void> _refreshIndexSize() async {
+    final bytes = await AnimeIndex.sizeInBytes();
+    if (mounted) setState(() => _indexBytes = bytes);
+  }
   String? _aiMessage;
   bool _aiBusy = false;
 
@@ -124,6 +141,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       label: const Text('Oublier les correspondances'),
                     ),
                   ],
+                  const Divider(color: Palette.line, height: 28),
+                  _indexSection(),
                 ],
               ),
               _card(
@@ -618,6 +637,128 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _indexSection() {
+    final installed = _indexBytes > 0;
+    final loaded = AnimeIndex.isLoaded;
+    final generated = AnimeIndex.meta['generated']?.toString();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Index complet',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        const Text(
+          'Environ 40 000 séries avec leurs synonymes et leurs affiches, '
+          'reconstruites chaque semaine par ton dépôt GitHub. Une fois '
+          'téléchargé, il répond sans connexion.',
+          style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.4),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          !installed
+              ? 'Non téléchargé.'
+              : loaded
+                  ? '${AnimeIndex.count} séries chargées · '
+                      '${(_indexBytes / 1000000).toStringAsFixed(1)} Mo'
+                      '${generated == null ? '' : ' · version $generated'}'
+                  : '${(_indexBytes / 1000000).toStringAsFixed(1)} Mo sur le disque, chargement en cours.',
+          style: TextStyle(
+              color: installed ? Palette.kin : Palette.muted, fontSize: 12),
+        ),
+        if (_indexBusy) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(radiusSm),
+            child: LinearProgressIndicator(
+              value: _indexProgress > 0 ? _indexProgress : null,
+              minHeight: 4,
+              backgroundColor: Palette.raised,
+              color: Palette.shu,
+            ),
+          ),
+        ],
+        if (_indexMessage != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(_indexMessage!,
+                style: const TextStyle(
+                    color: Palette.kin, fontSize: 12, height: 1.4)),
+          ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _indexBusy ? null : _downloadIndex,
+              icon: const Icon(Icons.cloud_download_outlined, size: 18),
+              label: Text(installed ? 'Mettre à jour' : 'Télécharger'),
+            ),
+            if (installed)
+              OutlinedButton.icon(
+                onPressed: _indexBusy ? null : _removeIndex,
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Supprimer'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Données : manami-project / anime-offline-database, '
+          'sous licence ODbL 1.0 et CC BY-SA 4.0.',
+          style: TextStyle(color: Palette.muted, fontSize: 10.5, height: 1.4),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _downloadIndex() async {
+    setState(() {
+      _indexBusy = true;
+      _indexProgress = 0;
+      _indexMessage = null;
+    });
+
+    final ok = await AnimeIndex.download(
+      repo: library.settings.indexRepo,
+      onProgress: (received, total) {
+        if (!mounted || total <= 0) return;
+        setState(() => _indexProgress = received / total);
+      },
+    );
+
+    if (!mounted) return;
+    if (!ok) {
+      setState(() {
+        _indexBusy = false;
+        _indexMessage = AnimeIndex.lastError ?? 'Téléchargement impossible.';
+      });
+      return;
+    }
+
+    setState(() {
+      _indexProgress = 0;
+      _indexMessage = 'Chargement de l\'index…';
+    });
+    final loaded = await AnimeIndex.load();
+    await _refreshIndexSize();
+    if (!mounted) return;
+    setState(() {
+      _indexBusy = false;
+      _indexMessage = loaded
+          ? '${AnimeIndex.count} séries disponibles hors connexion.'
+          : (AnimeIndex.lastError ?? 'Index illisible.');
+    });
+  }
+
+  Future<void> _removeIndex() async {
+    await AnimeIndex.remove();
+    await _refreshIndexSize();
+    if (!mounted) return;
+    setState(() => _indexMessage = 'Index supprimé.');
   }
 
   Future<void> _forgetTitles() async {

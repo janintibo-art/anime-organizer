@@ -1,0 +1,44 @@
+name: Construire l'index d'animes
+
+on:
+  schedule:
+    # Tous les lundis a 4 h UTC, apres la mise a jour hebdomadaire de la source.
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  index:
+    name: Index complet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Construire l'index
+        run: python3 tool/build_index.py
+
+      - name: Resume
+        run: cat data/anime-index-meta.json
+
+      # L'index est publie en release et non commite : un fichier binaire
+      # de plusieurs megaoctets chaque semaine alourdirait le depot pour rien.
+      - name: Publier
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: index-latest
+          name: Index d'animes
+          body: |
+            Index compact utilise par l'application, reconstruit chaque semaine.
+
+            Source : manami-project/anime-offline-database
+            Licence des donnees : ODbL 1.0 et CC BY-SA 4.0
+          files: |
+            data/anime-index.json.gz
+            data/anime-index-meta.json
+          make_latest: false

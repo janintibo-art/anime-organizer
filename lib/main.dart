@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'screens/splash_screen.dart';
 import 'services/library_controller.dart';
+import 'services/anime_index.dart';
 import 'services/seed_database.dart';
 
 /// Palette calee sur le logo : noir d'encre chaud, rouge de sceau,
@@ -76,6 +79,12 @@ Future<void> main() async {
   MediaKit.ensureInitialized();
   await SeedDatabase.load();
   await library.load();
+
+  // L'index complet est volumineux : on le charge en arriere-plan, la
+  // bibliotheque s'affiche sans l'attendre.
+  if (library.settings.useIndex) {
+    unawaited(AnimeIndex.load());
+  }
   runApp(const AnimeOrganizerApp());
 }
 

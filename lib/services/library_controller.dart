@@ -10,6 +10,7 @@ import '../models/anime_meta.dart';
 import 'metadata_service.dart';
 import 'ai_service.dart';
 import 'poster_cache.dart';
+import 'anime_index.dart';
 import 'seed_database.dart';
 import 'scanner.dart';
 import 'translate_api.dart';
@@ -27,6 +28,8 @@ class AppSettings {
   bool autoFetch = true;
   bool scanOnStart = true;
   bool offlinePosters = true;
+  bool useIndex = true;
+  String indexRepo = AnimeIndex.defaultRepo;
 
   // Lecteur
   bool autoNext = true;
@@ -56,6 +59,8 @@ class AppSettings {
         'autoFetch': autoFetch,
         'scanOnStart': scanOnStart,
         'offlinePosters': offlinePosters,
+        'useIndex': useIndex,
+        'indexRepo': indexRepo,
         'autoNext': autoNext,
         'skipIntroSeconds': skipIntroSeconds,
         'preferredAudio': preferredAudio,
@@ -82,6 +87,8 @@ class AppSettings {
     s.autoFetch = j['autoFetch'] as bool? ?? true;
     s.scanOnStart = j['scanOnStart'] as bool? ?? true;
     s.offlinePosters = j['offlinePosters'] as bool? ?? true;
+    s.useIndex = j['useIndex'] as bool? ?? true;
+    s.indexRepo = j['indexRepo'] as String? ?? AnimeIndex.defaultRepo;
     s.autoNext = j['autoNext'] as bool? ?? true;
     s.skipIntroSeconds = j['skipIntroSeconds'] as int? ?? 85;
     s.preferredAudio = j['preferredAudio'] as String? ?? '';
@@ -323,9 +330,16 @@ class LibraryController extends ChangeNotifier {
     // 2. La base locale : elle traduit un titre francais en romaji,
     //    ce que les bases en ligne savent chercher.
     SeedEntry? seed;
+    IndexEntry? indexed;
     if (resolved == null) {
       seed = SeedDatabase.match(anime.folderTitle, episodeCount: count);
-      if (seed != null) resolved = seed.searchQuery;
+      if (seed != null) {
+        resolved = seed.searchQuery;
+      } else if (settings.useIndex && AnimeIndex.isLoaded) {
+        // 40 000 series connues hors connexion, affiche comprise.
+        indexed = AnimeIndex.match(anime.folderTitle, episodeCount: count);
+        if (indexed != null) resolved = indexed.searchQuery;
+      }
     }
 
     var meta = await MetadataService.smartSearch(
@@ -341,6 +355,18 @@ class LibraryController extends ChangeNotifier {
       applyMeta(anime, seed.toMeta());
       anime.frenchTitle = seed.french;
       remember(anime.folderTitle, seed.searchQuery);
+      if (persist) await save();
+      notifyListeners();
+      return;
+    }
+
+    // L'index porte deja l'affiche : la fiche est utilisable telle quelle.
+    if (meta == null && indexed != null) {
+      applyMeta(anime, indexed.toMeta());
+      remember(anime.folderTitle, indexed.searchQuery);
+      if (settings.offlinePosters) {
+        anime.posterPath = await PosterCache.ensure(anime.id, anime.imageUrl);
+      }
       if (persist) await save();
       notifyListeners();
       return;
