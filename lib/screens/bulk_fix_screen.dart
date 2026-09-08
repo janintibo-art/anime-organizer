@@ -80,6 +80,7 @@ class _BulkFixScreenState extends State<BulkFixScreen> {
     if (chosen == null) return;
 
     library.applyMeta(anime, chosen);
+    library.remember(anime.folderTitle, chosen.titleRomaji ?? chosen.title);
     await library.save();
     if (library.settings.autoTranslate) {
       await library.translateOne(anime);

@@ -116,6 +116,7 @@ class _DetailScreenState extends State<DetailScreen> {
 
     await _run(() async {
       library.applyMeta(anime, chosen);
+      library.remember(anime.folderTitle, chosen.titleRomaji ?? chosen.title);
       await library.save();
       if (library.settings.autoTranslate) {
         await library.translateOne(anime);

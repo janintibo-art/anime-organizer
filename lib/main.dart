@@ -3,6 +3,7 @@ import 'package:media_kit/media_kit.dart';
 
 import 'screens/splash_screen.dart';
 import 'services/library_controller.dart';
+import 'services/seed_database.dart';
 
 /// Palette calee sur le logo : noir d'encre chaud, rouge de sceau,
 /// or et ivoire, avec un rose sakura utilise avec parcimonie.
@@ -73,6 +74,7 @@ AppBar darkAppBar({required Widget title, List<Widget>? actions}) {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+  await SeedDatabase.load();
   await library.load();
   runApp(const AnimeOrganizerApp());
 }

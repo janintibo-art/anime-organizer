@@ -10,6 +10,7 @@ import '../models/anime_meta.dart';
 import 'metadata_service.dart';
 import 'ai_service.dart';
 import 'poster_cache.dart';
+import 'seed_database.dart';
 import 'scanner.dart';
 import 'translate_api.dart';
 
@@ -104,6 +105,22 @@ class LibraryController extends ChangeNotifier {
 
   /// Series reperees dans l'onglet Decouvrir et mises de cote.
   List<AnimeMeta> wishlist = [];
+
+  /// Ta propre base : chaque correction manuelle ou par l'IA est retenue.
+  /// Un dossier deja identifie ne sera plus jamais recherche.
+  Map<String, String> knownTitles = {};
+
+  String _key(String folderTitle) =>
+      MetadataService.stripAccents(folderTitle).replaceAll(
+          RegExp(r'[^a-z0-9]'), '');
+
+  void remember(String folderTitle, String resolvedQuery) {
+    final key = _key(folderTitle);
+    if (key.length < 3 || resolvedQuery.trim().isEmpty) return;
+    knownTitles[key] = resolvedQuery.trim();
+  }
+
+  String? recall(String folderTitle) => knownTitles[_key(folderTitle)];
   AppSettings settings = AppSettings();
 
   bool busy = false;
@@ -153,6 +170,8 @@ class LibraryController extends ChangeNotifier {
               ?.map((e) => Anime.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??
           [];
+      knownTitles = ((data['knownTitles'] as Map?) ?? const {})
+          .map((k, v) => MapEntry(k.toString(), v.toString()));
       wishlist = (data['wishlist'] as List?)
               ?.map((e) =>
                   AnimeMeta.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -177,6 +196,7 @@ class LibraryController extends ChangeNotifier {
         'settings': settings.toJson(),
         'animes': animes.map((a) => a.toJson()).toList(),
         'wishlist': wishlist.map((w) => w.toJson()).toList(),
+        'knownTitles': knownTitles,
       }), flush: true);
 
       if (f.existsSync()) {
@@ -295,12 +315,36 @@ class LibraryController extends ChangeNotifier {
   /// Recupere image, synopsis et genres pour une serie.
   Future<void> fetchOne(Anime anime, {String? overrideQuery, bool persist = true}) async {
     final query = overrideQuery ?? anime.folderTitle;
+    final count = anime.episodes.where((e) => !e.bonus).length;
+
+    // 1. Ta memoire : ce dossier a deja ete identifie une fois.
+    var resolved = overrideQuery ?? recall(anime.folderTitle);
+
+    // 2. La base locale : elle traduit un titre francais en romaji,
+    //    ce que les bases en ligne savent chercher.
+    SeedEntry? seed;
+    if (resolved == null) {
+      seed = SeedDatabase.match(anime.folderTitle, episodeCount: count);
+      if (seed != null) resolved = seed.searchQuery;
+    }
+
     var meta = await MetadataService.smartSearch(
-      query,
+      resolved ?? query,
       source: settings.metaSource,
-      episodeCount: anime.episodes.where((e) => !e.bonus).length,
+      episodeCount: count,
       tmdbKey: settings.tmdbKey,
     );
+
+    // 3. Rien en ligne mais la base locale connait la serie : on l'applique
+    //    telle quelle, quitte a completer l'affiche plus tard.
+    if (meta == null && seed != null) {
+      applyMeta(anime, seed.toMeta());
+      anime.frenchTitle = seed.french;
+      remember(anime.folderTitle, seed.searchQuery);
+      if (persist) await save();
+      notifyListeners();
+      return;
+    }
 
     // Titre francais : on le traduit en anglais et on retente.
     if (meta == null &&
@@ -333,7 +377,6 @@ class LibraryController extends ChangeNotifier {
         custom: settings.aiEndpoint,
       );
       if (ai != null && ai.usable) {
-        final count = anime.episodes.where((e) => !e.bonus).length;
         meta = await MetadataService.smartSearch(
           ai.searchQuery,
           source: settings.metaSource,
@@ -357,6 +400,10 @@ class LibraryController extends ChangeNotifier {
       anime.metaFailed = anime.metaFailCount >= 3;
     } else {
       applyMeta(anime, meta);
+      remember(anime.folderTitle, meta.titleRomaji ?? meta.title);
+      if (seed != null && seed.french.isNotEmpty) {
+        anime.frenchTitle = seed.french;
+      }
       if (ai != null && ai.usable) {
         if (ai.french.isNotEmpty) anime.frenchTitle = ai.french;
         if (ai.japanese.isNotEmpty) anime.nativeTitle ??= ai.japanese;
@@ -526,6 +573,7 @@ class LibraryController extends ChangeNotifier {
         'settings': settings.toJson(),
         'animes': animes.map((a) => a.toJson()).toList(),
         'wishlist': wishlist.map((w) => w.toJson()).toList(),
+        'knownTitles': knownTitles,
       };
 
   String _two(int v) => v.toString().padLeft(2, '0');
@@ -632,6 +680,7 @@ class LibraryController extends ChangeNotifier {
       if (settings.autoTranslate && settings.translationProvider != 'none') {
         await translateOne(anime, persist: false);
       }
+      remember(anime.folderTitle, ai.searchQuery);
       await save();
       notifyListeners();
       return 'Identifiée : ${meta.title}';

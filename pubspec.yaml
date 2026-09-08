@@ -28,6 +28,7 @@ flutter:
   assets:
     - assets/logo.png
     - assets/icon.png
+    - assets/seed_anime.json
 
 # Icones de l'application, generees pendant la compilation
 flutter_launcher_icons:

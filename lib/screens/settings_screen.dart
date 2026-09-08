@@ -4,6 +4,7 @@ import '../main.dart';
 import '../services/library_controller.dart';
 import '../services/ai_service.dart';
 import '../services/diagnostics.dart';
+import '../services/seed_database.dart';
 import '../services/poster_cache.dart';
 import 'bulk_fix_screen.dart';
 import 'folder_picker_screen.dart';
@@ -95,6 +96,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle:
                         'Détecte les nouveaux animes. Les fiches déjà trouvées sont conservées.',
                   ),
+                ],
+              ),
+              _card(
+                icon: Icons.storage,
+                title: 'Base locale',
+                children: [
+                  Text(
+                    '${SeedDatabase.count} séries connues hors connexion, avec leurs titres '
+                    'en romaji, anglais, français et japonais. Elles servent à traduire un nom '
+                    'de dossier en titre que les bases en ligne reconnaissent.',
+                    style: const TextStyle(
+                        color: Palette.muted, fontSize: 12, height: 1.4),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '${library.knownTitles.length} correspondance(s) mémorisée(s) '
+                    'depuis tes corrections. Ces dossiers ne seront plus recherchés.',
+                    style: const TextStyle(
+                        color: Palette.kin, fontSize: 12, height: 1.4),
+                  ),
+                  if (library.knownTitles.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _forgetTitles,
+                      icon: const Icon(Icons.backspace_outlined, size: 18),
+                      label: const Text('Oublier les correspondances'),
+                    ),
+                  ],
                 ],
               ),
               _card(
@@ -588,6 +617,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _forgetTitles() async {
+    library.knownTitles.clear();
+    await library.save();
+    library.refresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Correspondances oubliées.')),
     );
   }
 
