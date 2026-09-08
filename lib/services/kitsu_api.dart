@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/anime_meta.dart';
+import '../models/episode_release.dart';
 import 'http_client.dart';
 
 /// Troisième source, indépendante d'AniList et de MyAnimeList.
@@ -71,6 +72,69 @@ class KitsuApi {
     };
     final body = await _get('anime', params);
     return _parse(body);
+  }
+
+  /// Derniers episodes diffuses, sur les trente derniers jours.
+  static Future<List<EpisodeRelease>> recentEpisodes({int page = 1}) async {
+    String jour(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+
+    final today = DateTime.now();
+    final from = today.subtract(const Duration(days: 30));
+
+    for (final host in _hosts) {
+      try {
+        final uri = Uri.https(host, '/api/edge/episodes', {
+          'sort': '-airdate',
+          'page[limit]': '20',
+          'page[offset]': '${(page - 1) * 20}',
+          'filter[airdate]': '${jour(from)}..${jour(today)}',
+          'include': 'media',
+        });
+        final res = await http
+            .get(uri,
+                headers: AppHttp.headers(accept: 'application/vnd.api+json'))
+            .timeout(const Duration(seconds: 25));
+        if (res.statusCode != 200) {
+          lastError = 'HTTP ${res.statusCode} ($host)';
+          continue;
+        }
+
+        final body =
+            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+
+        // Les series arrivent dans la section « included », par identifiant.
+        final medias = <String, AnimeMeta>{};
+        for (final entry in body['included'] as List? ?? const []) {
+          final map = entry as Map;
+          if (map['type'] != 'anime') continue;
+          final meta = _map(Map<String, dynamic>.from(map), const {});
+          final id = map['id']?.toString();
+          if (meta != null && id != null) medias[id] = meta;
+        }
+
+        final out = <EpisodeRelease>[];
+        for (final entry in body['data'] as List? ?? const []) {
+          final map = entry as Map;
+          final attrs = map['attributes'] as Map?;
+          final mediaId = (((map['relationships'] as Map?)?['media']
+              as Map?)?['data'] as Map?)?['id']?.toString();
+          final meta = medias[mediaId];
+          if (meta == null) continue;
+
+          out.add(EpisodeRelease(
+            anime: meta,
+            number: attrs?['number'] as int?,
+            airedAt: DateTime.tryParse(attrs?['airdate']?.toString() ?? ''),
+          ));
+        }
+        return out;
+      } catch (e) {
+        lastError = e.toString();
+      }
+    }
+    return const [];
   }
 
   static List<AnimeMeta> _parse(Map<String, dynamic>? body) {

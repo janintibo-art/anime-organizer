@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/anime_meta.dart';
+import '../models/episode_release.dart';
 import 'http_client.dart';
 
 export '../models/anime_meta.dart';
@@ -70,6 +71,60 @@ class JikanApi {
     'START_DATE_DESC': 'start_date',
     'FAVOURITES_DESC': 'favorites',
   };
+
+  /// Derniers episodes mis en ligne, vus par MyAnimeList.
+  static Future<List<EpisodeRelease>> recentEpisodes({int page = 1}) async {
+    await _gate();
+    try {
+      final uri = Uri.https('api.jikan.moe', '/v4/watch/episodes', {
+        'page': '$page',
+      });
+      final res = await http
+          .get(uri, headers: AppHttp.headers())
+          .timeout(const Duration(seconds: 25));
+      if (res.statusCode != 200) {
+        lastError = 'HTTP ${res.statusCode}';
+        return const [];
+      }
+
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final data = body['data'] as List? ?? const [];
+      final out = <EpisodeRelease>[];
+
+      for (final item in data) {
+        final map = item as Map;
+        final entry = map['entry'] as Map?;
+        if (entry == null) continue;
+
+        final images = entry['images'] as Map?;
+        final jpg = images?['jpg'] as Map?;
+        final title = entry['title']?.toString();
+        if (title == null || title.isEmpty) continue;
+
+        final meta = AnimeMeta(
+          sourceId: entry['mal_id'] as int?,
+          source: 'jikan',
+          title: title,
+          titleRomaji: title,
+          imageUrl: (jpg?['large_image_url'] ?? jpg?['image_url']) as String?,
+        );
+
+        // Le premier element de la liste est l'episode le plus recent.
+        final episodes = map['episodes'] as List? ?? const [];
+        int? number;
+        if (episodes.isNotEmpty) {
+          final label = (episodes.first as Map)['mal_id'];
+          if (label is int) number = label;
+        }
+
+        out.add(EpisodeRelease(anime: meta, number: number));
+      }
+      return out;
+    } catch (e) {
+      lastError = e.toString();
+      return const [];
+    }
+  }
 
   /// Liste de secours : meme role que le parcours AniList, en moins riche.
   static Future<List<AnimeMeta>> browse({

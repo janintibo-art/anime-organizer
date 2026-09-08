@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/anime_meta.dart';
+import '../models/episode_release.dart';
 import 'http_client.dart';
 
 export '../models/anime_meta.dart';
@@ -161,6 +162,80 @@ query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$format:MediaFormat
       }
     }
     return const BrowsePage([], false);
+  }
+
+  /// Derniers episodes diffuses, le plus recent en tete.
+  static Future<List<EpisodeRelease>> recentEpisodes({int page = 1}) async {
+    if (isPaused) return const [];
+
+    const query = r'''
+query($page:Int,$perPage:Int,$before:Int){
+  Page(page:$page,perPage:$perPage){
+    airingSchedules(airingAt_lesser:$before,sort:TIME_DESC){
+      episode
+      airingAt
+      media{
+        id
+        title{romaji english native}
+        coverImage{large medium}
+        description(asHtml:false)
+        genres episodes averageScore popularity seasonYear status format
+        isAdult
+        studios(isMain:true){nodes{name}}
+      }
+    }
+  }
+}''';
+
+    await _throttle();
+    try {
+      final res = await http
+          .post(
+            Uri.parse(_url),
+            headers: AppHttp.headers(json: true),
+            body: jsonEncode({
+              'query': query,
+              'variables': {
+                'page': page,
+                'perPage': 30,
+                'before': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+              },
+            }),
+          )
+          .timeout(const Duration(seconds: 25));
+
+      if (res.statusCode != 200) {
+        lastError = 'HTTP ${res.statusCode}';
+        if (res.statusCode == 403) _pause();
+        return const [];
+      }
+
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final schedules =
+          ((body['data'] as Map?)?['Page'] as Map?)?['airingSchedules'] as List? ??
+              const [];
+
+      final out = <EpisodeRelease>[];
+      for (final item in schedules) {
+        final map = item as Map;
+        final media = map['media'] as Map?;
+        if (media == null || media['isAdult'] == true) continue;
+        final meta = _map(Map<String, dynamic>.from(media));
+        if (meta == null) continue;
+        final airing = map['airingAt'];
+        out.add(EpisodeRelease(
+          anime: meta,
+          number: map['episode'] as int?,
+          airedAt: airing is int
+              ? DateTime.fromMillisecondsSinceEpoch(airing * 1000)
+              : null,
+        ));
+      }
+      return out;
+    } catch (e) {
+      lastError = e.toString();
+      return const [];
+    }
   }
 
   /// Series proches, proposees par AniList.

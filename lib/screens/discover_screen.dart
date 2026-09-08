@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../models/anime_meta.dart';
+import '../models/episode_release.dart';
 import '../models/labels.dart';
 import '../services/anilist_api.dart';
 import '../services/jikan_api.dart';
@@ -48,6 +49,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   String _search = '';
   bool _seasonOnly = false;
   bool _wishlistOnly = false;
+  bool _releasesMode = false;
+
+  final List<EpisodeRelease> _releases = [];
+  final Set<String> _releaseKeys = {};
+  int _releasePage = 1;
+  bool _releasesLoading = false;
+  bool _releasesHasNext = true;
+  String? _releasesNotice;
 
   final List<AnimeMeta> _items = [];
   final Set<int> _seen = {};
@@ -63,7 +72,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     _scroll.addListener(() {
       if (_scroll.position.pixels >
           _scroll.position.maxScrollExtent - 600) {
-        _loadMore();
+        if (_releasesMode) {
+          _loadReleases();
+        } else {
+          _loadMore();
+        }
       }
     });
     _reload();
@@ -208,6 +221,37 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     });
   }
 
+  /// Derniers épisodes : AniList d'abord, puis MyAnimeList, puis Kitsu.
+  Future<void> _loadReleases() async {
+    if (_releasesLoading || !_releasesHasNext) return;
+    setState(() => _releasesLoading = true);
+
+    var found = await AniListApi.recentEpisodes(page: _releasePage);
+    String? notice;
+
+    if (found.isEmpty) {
+      found = await JikanApi.recentEpisodes(page: _releasePage);
+      if (found.isNotEmpty) notice = 'Liste fournie par MyAnimeList.';
+    }
+    if (found.isEmpty) {
+      found = await KitsuApi.recentEpisodes(page: _releasePage);
+      if (found.isNotEmpty) notice = 'Liste fournie par Kitsu.';
+    }
+
+    if (!mounted) return;
+    setState(() {
+      for (final item in found) {
+        if (_releaseKeys.contains(item.key)) continue;
+        _releaseKeys.add(item.key);
+        _releases.add(item);
+      }
+      _releasesNotice = notice;
+      _releasesHasNext = found.isNotEmpty;
+      _releasePage++;
+      _releasesLoading = false;
+    });
+  }
+
   void _open(AnimeMeta meta) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => DiscoverDetailScreen(meta: meta)),
@@ -220,6 +264,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       animation: library,
       builder: (context, _) {
         final items = _wishlistOnly ? library.wishlist : _items;
+
+        if (_releasesMode) return _releasesScaffold();
 
         return Scaffold(
           appBar: darkAppBar(
@@ -285,6 +331,174 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// Vue dédiée aux sorties : une liste, pas une grille — la date et le
+  /// numéro d'épisode comptent autant que l'affiche.
+  Widget _releasesScaffold() {
+    return Scaffold(
+      appBar: darkAppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(width: 3, height: 18, color: Palette.shu),
+                const SizedBox(width: 8),
+                const Text('Derniers épisodes'),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 11, top: 1),
+              child: Text('Sorties récentes',
+                  style: TextStyle(
+                      color: Palette.muted,
+                      fontSize: 10.5,
+                      letterSpacing: 0.8)),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Retour au catalogue',
+            onPressed: () => setState(() => _releasesMode = false),
+            icon: const Icon(Icons.grid_view),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          if (_releasesNotice != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Text(_releasesNotice!,
+                  style: const TextStyle(color: Palette.kin, fontSize: 11.5)),
+            ),
+          if (_releasesLoading && _releases.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: LinearProgressIndicator(
+                  minHeight: 3,
+                  backgroundColor: Palette.raised,
+                  color: Palette.shu),
+            ),
+          Expanded(
+            child: _releases.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Text(
+                        _releasesLoading
+                            ? 'Recherche des sorties…'
+                            : 'Aucune sortie récupérée. Les trois calendriers '
+                                'sont peut-être indisponibles.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Palette.muted),
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    controller: _scroll,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    itemCount: _releases.length + (_releasesLoading ? 1 : 0),
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, i) {
+                      if (i >= _releases.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Palette.shu),
+                            ),
+                          ),
+                        );
+                      }
+                      return _releaseTile(_releases[i]);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _releaseTile(EpisodeRelease release) {
+    final meta = release.anime;
+    final local = library.localMatch(meta);
+
+    return InkWell(
+      onTap: () => _open(meta),
+      borderRadius: BorderRadius.circular(radiusMd),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(radiusSm),
+            child: SizedBox(
+              width: 54,
+              height: 76,
+              child: meta.imageUrl == null
+                  ? Container(color: Palette.raised)
+                  : CachedNetworkImage(
+                      imageUrl: meta.imageUrl!, fit: BoxFit.cover),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  meta.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600, height: 1.2),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Palette.shu,
+                        borderRadius: BorderRadius.circular(radiusSm),
+                      ),
+                      child: Text(
+                        release.episodeLabel,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    if (release.whenLabel.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text(release.whenLabel,
+                          style: const TextStyle(
+                              color: Palette.muted, fontSize: 11.5)),
+                    ],
+                  ],
+                ),
+                if (local != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tu as ${local.episodes.length} fichier(s) de cette série',
+                    style: const TextStyle(color: Palette.kin, fontSize: 11),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: Palette.muted, size: 20),
+        ],
+      ),
     );
   }
 
@@ -487,6 +701,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   onTap: () {
                     setState(() => _seasonOnly = !_seasonOnly);
                     _reload();
+                  },
+                ),
+                const SizedBox(width: 8),
+                _chip(
+                  label: 'Derniers épisodes',
+                  selected: _releasesMode,
+                  onTap: () {
+                    setState(() {
+                      _releasesMode = !_releasesMode;
+                      if (_releasesMode) _wishlistOnly = false;
+                    });
+                    if (_releasesMode && _releases.isEmpty) _loadReleases();
                   },
                 ),
                 const SizedBox(width: 8),
