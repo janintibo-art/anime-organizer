@@ -47,6 +47,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   String _sort = 'TRENDING_DESC';
   String _format = '';
   String _genre = '';
+  String _tag = '';
   String _search = '';
   bool _seasonOnly = false;
   bool _wishlistOnly = false;
@@ -111,6 +112,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       perPage: 30,
       sort: _sort,
       genre: _genre.isEmpty ? null : _genre,
+      tag: _tag.isEmpty ? null : _tag,
       format: _format.isEmpty ? null : _format,
       season: _seasonOnly ? AniListApi.currentSeason() : null,
       seasonYear: _seasonOnly ? DateTime.now().year : null,
@@ -696,6 +698,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   },
                 ),
                 const SizedBox(width: 8),
+                _genreMenu(),
+                const SizedBox(width: 8),
                 _chip(
                   label: 'Saison en cours',
                   selected: _seasonOnly,
@@ -730,30 +734,104 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   selected: _wishlistOnly,
                   onTap: () => setState(() => _wishlistOnly = !_wishlistOnly),
                 ),
-                const SizedBox(width: 8),
-                _chip(
-                  label: 'Tous genres',
-                  selected: _genre.isEmpty,
-                  onTap: () {
-                    setState(() => _genre = '');
-                    _reload();
-                  },
-                ),
-                for (final g in AniListApi.genreList) ...[
-                  const SizedBox(width: 8),
-                  _chip(
-                    label: g,
-                    selected: _genre == g,
-                    onTap: () {
-                      setState(() => _genre = _genre == g ? '' : g);
-                      _reload();
-                    },
-                  ),
-                ],
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Genres et étiquettes dans un seul menu déroulant.
+  /// AniList sépare les deux : dix-huit genres figés d'un côté, des
+  /// centaines d'étiquettes de l'autre — isekai en fait partie.
+  Widget _genreMenu() {
+    final current = _tag.isNotEmpty
+        ? Labels.genre(_tag)
+        : (_genre.isEmpty ? 'Tous genres' : Labels.genre(_genre));
+
+    return PopupMenuButton<String>(
+      color: Palette.surface,
+      constraints: const BoxConstraints(maxHeight: 420, minWidth: 220),
+      onSelected: (value) {
+        setState(() {
+          if (value == '') {
+            _genre = '';
+            _tag = '';
+          } else if (value.startsWith('g:')) {
+            _genre = value.substring(2);
+            _tag = '';
+          } else {
+            _tag = value.substring(2);
+            _genre = '';
+          }
+        });
+        _reload();
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(value: '', child: Text('Tous genres')),
+        const PopupMenuItem(
+          enabled: false,
+          height: 30,
+          child: Text('Genres',
+              style: TextStyle(color: Palette.muted, fontSize: 11.5)),
+        ),
+        for (final g in AniListApi.genreList)
+          PopupMenuItem(
+            value: 'g:$g',
+            child: Text(
+              Labels.genre(g),
+              style: TextStyle(
+                  color: _genre == g ? Palette.shu : Palette.text),
+            ),
+          ),
+        const PopupMenuItem(
+          enabled: false,
+          height: 30,
+          child: Text('Thèmes',
+              style: TextStyle(color: Palette.muted, fontSize: 11.5)),
+        ),
+        for (final t in AniListApi.tagList)
+          PopupMenuItem(
+            value: 't:$t',
+            child: Text(
+              Labels.genre(t),
+              style:
+                  TextStyle(color: _tag == t ? Palette.shu : Palette.text),
+            ),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: (_genre.isEmpty && _tag.isEmpty) ? Palette.raised : Palette.shu,
+          border: Border.all(
+              color: (_genre.isEmpty && _tag.isEmpty)
+                  ? Palette.line
+                  : Palette.shu),
+          borderRadius: BorderRadius.circular(radiusSm),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              current,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: (_genre.isEmpty && _tag.isEmpty)
+                    ? Palette.text
+                    : Colors.white,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.expand_more,
+                size: 16,
+                color: (_genre.isEmpty && _tag.isEmpty)
+                    ? Palette.muted
+                    : Colors.white),
+          ],
+        ),
       ),
     );
   }

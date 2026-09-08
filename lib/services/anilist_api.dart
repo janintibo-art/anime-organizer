@@ -52,6 +52,51 @@ class AniListApi {
     'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller',
   ];
 
+  /// Etiquettes AniList : bien plus fines que les genres, et c'est la que
+  /// se trouvent isekai, reincarnation, voyage temporel et le reste.
+  static const List<String> tagList = [
+    'Isekai',
+    'Reincarnation',
+    'Time Manipulation',
+    'Revenge',
+    'Survival',
+    'Super Power',
+    'Martial Arts',
+    'Magic',
+    'Demons',
+    'Gods',
+    'Vampire',
+    'Zombie',
+    'Ninja',
+    'Samurai',
+    'Pirates',
+    'Space',
+    'Robots',
+    'Cyberpunk',
+    'Steampunk',
+    'Kaiju',
+    'Dragons',
+    'Assassins',
+    'Crime',
+    'War',
+    'Politics',
+    'Cooking',
+    'Idol',
+    'Video Games',
+    'Mythology',
+    'Detective',
+    'Post-Apocalyptic',
+    'Coming of Age',
+    'Tragedy',
+    'Love Triangle',
+    'Family Life',
+    'Female Protagonist',
+    'Male Protagonist',
+    'Ensemble Cast',
+    'Parody',
+    'Philosophy',
+  ];
+
   /// Saison en cours, au sens d'AniList.
   static String currentSeason([DateTime? now]) {
     final month = (now ?? DateTime.now()).month;
@@ -87,16 +132,17 @@ query($search:String,$perPage:Int){
     int perPage = 30,
     String sort = 'TRENDING_DESC',
     String? genre,
+    String? tag,
     String? format,
     String? season,
     int? seasonYear,
     String? search,
   }) async {
     const query = r'''
-query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$format:MediaFormat,$season:MediaSeason,$seasonYear:Int,$search:String){
+query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$tag:String,$format:MediaFormat,$season:MediaSeason,$seasonYear:Int,$search:String){
   Page(page:$page,perPage:$perPage){
     pageInfo{hasNextPage}
-    media(type:ANIME,isAdult:false,sort:$sort,genre:$genre,format:$format,season:$season,seasonYear:$seasonYear,search:$search){
+    media(type:ANIME,isAdult:false,sort:$sort,genre:$genre,tag:$tag,format:$format,season:$season,seasonYear:$seasonYear,search:$search){
       id
       title{romaji english native}
       coverImage{large medium}
@@ -114,6 +160,7 @@ query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$format:MediaFormat
       'perPage': perPage,
       'sort': [search != null && search.isNotEmpty ? 'SEARCH_MATCH' : sort],
       if (genre != null && genre.isNotEmpty) 'genre': genre,
+      if (tag != null && tag.isNotEmpty) 'tag': tag,
       if (format != null && format.isNotEmpty) 'format': format,
       if (season != null && season.isNotEmpty) 'season': season,
       if (seasonYear != null) 'seasonYear': seasonYear,
