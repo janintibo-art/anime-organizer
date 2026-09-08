@@ -6,8 +6,10 @@
 /// application identifiable, avec un contact, ce que demandent la plupart
 /// des API publiques.
 class AppHttp {
+  /// Uniquement de l'ASCII : un en-tete HTTP n'accepte rien d'autre,
+  /// un simple accent fait echouer la requete avant l'envoi.
   static const String userAgent =
-      'AnimeOrganizer/1.0 (application personnelle de bibliothèque; Flutter)';
+      'AnimeOrganizer/1.0 (personal media library; Flutter)';
 
   static Map<String, String> headers({
     String accept = 'application/json',
