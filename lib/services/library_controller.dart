@@ -39,7 +39,9 @@ class AppSettings {
   String aiKey = '';
   String aiModel = 'llama-3.3-70b-versatile';
   String aiEndpoint = '';
-  String metaSource = 'auto'; // auto | anilist | jikan
+  // auto | anilist | jikan | kitsu | animethemes | tmdb
+  String metaSource = 'auto';
+  String tmdbKey = '';
   String viewMode = 'grid'; // grid | list | genre
   String sortMode = 'alpha'; // alpha | score | year | episodes | recent
 
@@ -63,6 +65,7 @@ class AppSettings {
         'aiModel': aiModel,
         'aiEndpoint': aiEndpoint,
         'metaSource': metaSource,
+        'tmdbKey': tmdbKey,
         'viewMode': viewMode,
         'sortMode': sortMode,
       };
@@ -88,6 +91,7 @@ class AppSettings {
     s.aiModel = j['aiModel'] as String? ?? 'llama-3.3-70b-versatile';
     s.aiEndpoint = j['aiEndpoint'] as String? ?? '';
     s.metaSource = j['metaSource'] as String? ?? 'auto';
+    s.tmdbKey = j['tmdbKey'] as String? ?? '';
     s.viewMode = j['viewMode'] as String? ?? 'grid';
     s.sortMode = j['sortMode'] as String? ?? 'alpha';
     return s;
@@ -295,6 +299,7 @@ class LibraryController extends ChangeNotifier {
       query,
       source: settings.metaSource,
       episodeCount: anime.episodes.where((e) => !e.bonus).length,
+      tmdbKey: settings.tmdbKey,
     );
 
     // Titre francais : on le traduit en anglais et on retente.
@@ -329,11 +334,19 @@ class LibraryController extends ChangeNotifier {
       );
       if (ai != null && ai.usable) {
         final count = anime.episodes.where((e) => !e.bonus).length;
-        meta = await MetadataService.smartSearch(ai.searchQuery,
-            source: settings.metaSource, episodeCount: count);
+        meta = await MetadataService.smartSearch(
+          ai.searchQuery,
+          source: settings.metaSource,
+          episodeCount: count,
+          tmdbKey: settings.tmdbKey,
+        );
         if (meta == null && ai.english.isNotEmpty) {
-          meta = await MetadataService.smartSearch(ai.english,
-              source: settings.metaSource, episodeCount: count);
+          meta = await MetadataService.smartSearch(
+            ai.english,
+            source: settings.metaSource,
+            episodeCount: count,
+            tmdbKey: settings.tmdbKey,
+          );
         }
       }
     }
@@ -606,7 +619,7 @@ class LibraryController extends ChangeNotifier {
     if (ai.romaji.isNotEmpty) anime.romajiTitle = ai.romaji;
 
     final meta = await MetadataService.smartSearch(ai.searchQuery,
-        source: settings.metaSource);
+        source: settings.metaSource, tmdbKey: settings.tmdbKey);
     if (meta != null) {
       final french = anime.frenchTitle;
       final japanese = anime.nativeTitle;

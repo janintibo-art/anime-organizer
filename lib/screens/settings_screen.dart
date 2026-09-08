@@ -33,6 +33,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       TextEditingController(text: library.settings.preferredAudio);
   late final TextEditingController _subLang =
       TextEditingController(text: library.settings.preferredSubtitle);
+  late final TextEditingController _tmdbKey =
+      TextEditingController(text: library.settings.tmdbKey);
 
   List<String> _models = [];
   List<String> _diagnostic = [];
@@ -50,6 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _aiEndpoint.dispose();
     _audioLang.dispose();
     _subLang.dispose();
+    _tmdbKey.dispose();
     super.dispose();
   }
 
@@ -102,13 +105,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     label: 'Source',
                     value: s.metaSource,
                     items: const {
-                      'auto': 'AniList, puis MyAnimeList, puis Kitsu',
+                      'auto': 'Automatique — les cinq sources en cascade',
                       'anilist': 'AniList seulement',
                       'jikan': 'MyAnimeList seulement',
                       'kitsu': 'Kitsu seulement',
+                      'animethemes': 'AnimeThemes seulement',
+                      'tmdb': 'TMDB seulement (clé requise)',
                     },
                     onChanged: (v) =>
                         library.updateSettings((s) => s.metaSource = v),
+                  ),
+                  _field(
+                    controller: _tmdbKey,
+                    label: 'Clé TMDB (facultative)',
+                    hint: 'themoviedb.org — gratuite, donne des synopsis en français',
+                    obscure: true,
+                    onSubmit: (v) => library.updateSettings((s) => s.tmdbKey = v),
                   ),
                   _switch(
                     value: s.autoFetch,

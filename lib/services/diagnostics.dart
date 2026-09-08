@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'anilist_api.dart';
 import 'http_client.dart';
 import 'jikan_api.dart';
+import 'animethemes_api.dart';
 import 'kitsu_api.dart';
 
 /// Test de connexion : trois appels réels, et le message d'erreur affiché
@@ -22,6 +23,7 @@ class Diagnostics {
     lines.add(await _anilist());
     lines.add(await _jikan());
     lines.add(await _kitsu());
+    lines.add(await _animeThemes());
 
     return lines;
   }
@@ -33,6 +35,15 @@ class Diagnostics {
       return 'Kitsu : ÉCHEC — $reason';
     }
     return 'Kitsu : OK — exemple reçu « ${results.first.title} »';
+  }
+
+  static Future<String> _animeThemes() async {
+    final results = await AnimeThemesApi.search('naruto', limit: 1);
+    if (results.isEmpty) {
+      final reason = AnimeThemesApi.lastError ?? 'aucun résultat';
+      return 'AnimeThemes : ÉCHEC — $reason';
+    }
+    return 'AnimeThemes : OK — exemple reçu « ${results.first.title} »';
   }
 
   static Future<String> _simple(String label, String url) async {

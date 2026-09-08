@@ -3,7 +3,9 @@ import 'dart:math';
 import '../models/anime_meta.dart';
 import 'anilist_api.dart';
 import 'jikan_api.dart';
+import 'animethemes_api.dart';
 import 'kitsu_api.dart';
+import 'tmdb_api.dart';
 
 /// Choisit la source de metadonnees.
 /// En mode automatique : AniList d'abord (rapide et complet), Jikan en
@@ -131,13 +133,15 @@ class MetadataService {
     String title, {
     String source = 'auto',
     int? episodeCount,
+    String tmdbKey = '',
   }) async {
     AnimeMeta? best;
     var bestScore = 0.0;
     var bestSimilarity = 0.0;
 
     for (final query in variants(title)) {
-      final results = await searchMany(query, source: source, limit: 8);
+      final results =
+          await searchMany(query, source: source, limit: 8, tmdbKey: tmdbKey);
       for (final candidate in results) {
         final value = score(candidate, query, episodeCount);
         final sim = max(
@@ -159,8 +163,13 @@ class MetadataService {
     return bestSimilarity >= 0.32 ? best : null;
   }
 
-  static Future<AnimeMeta?> search(String title, {String source = 'auto'}) async {
-    final results = await searchMany(title, source: source, limit: 1);
+  static Future<AnimeMeta?> search(
+    String title, {
+    String source = 'auto',
+    String tmdbKey = '',
+  }) async {
+    final results =
+        await searchMany(title, source: source, limit: 1, tmdbKey: tmdbKey);
     return results.isEmpty ? null : results.first;
   }
 
@@ -168,6 +177,7 @@ class MetadataService {
     String title, {
     String source = 'auto',
     int limit = 8,
+    String tmdbKey = '',
   }) async {
     switch (source) {
       case 'anilist':
@@ -176,6 +186,10 @@ class MetadataService {
         return JikanApi.searchMany(title, limit: limit);
       case 'kitsu':
         return KitsuApi.search(title, limit: limit);
+      case 'animethemes':
+        return AnimeThemesApi.search(title, limit: limit);
+      case 'tmdb':
+        return TmdbApi.search(title, tmdbKey, limit: limit);
       default:
         // Trois sources d'affilee : si AniList est coupe et MyAnimeList
         // surcharge, Kitsu prend le relais.
@@ -183,7 +197,12 @@ class MetadataService {
         if (primary.isNotEmpty) return primary;
         final secondary = await JikanApi.searchMany(title, limit: limit);
         if (secondary.isNotEmpty) return secondary;
-        return KitsuApi.search(title, limit: limit);
+        final third = await KitsuApi.search(title, limit: limit);
+        if (third.isNotEmpty) return third;
+        final fourth = await AnimeThemesApi.search(title, limit: limit);
+        if (fourth.isNotEmpty) return fourth;
+        if (tmdbKey.trim().isEmpty) return const [];
+        return TmdbApi.search(title, tmdbKey, limit: limit);
     }
   }
 }

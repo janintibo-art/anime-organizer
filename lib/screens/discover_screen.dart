@@ -5,8 +5,11 @@ import '../main.dart';
 import '../models/anime_meta.dart';
 import '../services/anilist_api.dart';
 import '../services/jikan_api.dart';
+import '../services/animethemes_api.dart';
 import '../services/kitsu_api.dart';
+import '../services/tmdb_api.dart';
 import '../services/library_controller.dart';
+import '../services/metadata_service.dart';
 import 'discover_detail_screen.dart';
 
 /// Onglet Découvrir : le catalogue AniList, filtrable, avec chargement au fil
@@ -99,6 +102,30 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       search: _search.length >= 2 ? _search : null,
     );
 
+    // Une recherche doit aussi profiter des sources de secours.
+    if (_search.length >= 2 && result.items.isEmpty) {
+      final fallback = await MetadataService.searchMany(
+        _search,
+        source: 'auto',
+        limit: 20,
+        tmdbKey: library.settings.tmdbKey,
+      );
+      if (fallback.isNotEmpty && mounted) {
+        setState(() {
+          for (final item in fallback) {
+            final id = item.sourceId;
+            if (id != null && _seen.contains(id)) continue;
+            if (id != null) _seen.add(id);
+            _items.add(item);
+          }
+          _hasNext = false;
+          _loading = false;
+          _notice = 'Résultats fournis par les sources de secours.';
+        });
+        return;
+      }
+    }
+
     // AniList muet : on bascule sur MyAnimeList plutot que d'afficher un vide.
     var items = result.items;
     var hasNext = result.hasNext;
@@ -126,6 +153,25 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           items = third;
           hasNext = third.length >= 20;
           notice = 'AniList et MyAnimeList indisponibles, liste fournie par Kitsu.';
+        } else {
+          final fourth = await AnimeThemesApi.browse(
+            page: _page,
+            sort: _sort,
+            format: _format.isEmpty ? null : _format,
+          );
+          if (fourth.isNotEmpty) {
+            items = fourth;
+            hasNext = fourth.length >= 15;
+            notice = 'Liste fournie par AnimeThemes.';
+          } else if (library.settings.tmdbKey.trim().isNotEmpty) {
+            final fifth =
+                await TmdbApi.browse(library.settings.tmdbKey, page: _page, sort: _sort);
+            if (fifth.isNotEmpty) {
+              items = fifth;
+              hasNext = fifth.length >= 15;
+              notice = 'Liste fournie par TMDB, en français.';
+            }
+          }
         }
       }
     }
@@ -148,6 +194,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           if (JikanApi.lastError != null)
             'MyAnimeList : ${JikanApi.lastError}',
           if (KitsuApi.lastError != null) 'Kitsu : ${KitsuApi.lastError}',
+          if (AnimeThemesApi.lastError != null)
+            'AnimeThemes : ${AnimeThemesApi.lastError}',
+          if (TmdbApi.lastError != null) 'TMDB : ${TmdbApi.lastError}',
         ].join('\n\n');
 
         _error = details.isEmpty
