@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../models/anime_meta.dart';
+import '../models/labels.dart';
 import '../services/anilist_api.dart';
 import '../services/library_controller.dart';
 import '../services/translate_api.dart';
@@ -298,10 +299,12 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
   Widget _badges() {
     final items = <List<String>>[
       if (meta.year != null) ['Année', '${meta.year}'],
-      if (meta.type != null) ['Format', meta.type!],
+      if (Labels.format(meta.type) != null)
+        ['Format', Labels.format(meta.type)!],
       if (meta.episodes != null) ['Épisodes', '${meta.episodes}'],
       if (meta.score != null) ['Note', meta.score!.toStringAsFixed(2)],
-      if (meta.status != null) ['Statut', meta.status!],
+      if (Labels.status(meta.status) != null)
+        ['Statut', Labels.status(meta.status)!],
       if (meta.studios != null) ['Studio', meta.studios!],
     ];
     if (items.isEmpty) return const SizedBox.shrink();
@@ -344,7 +347,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: meta.genres
+      children: Labels.genres(meta.genres)
           .map((g) => Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

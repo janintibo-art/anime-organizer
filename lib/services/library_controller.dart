@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/anime.dart';
 import '../models/anime_meta.dart';
+import '../models/labels.dart';
 import 'metadata_service.dart';
 import 'ai_service.dart';
 import 'poster_cache.dart';
@@ -456,13 +457,13 @@ class LibraryController extends ChangeNotifier {
     anime.posterPath = null;
     anime.synopsisEn = meta.synopsis;
     anime.synopsisTranslated = null;
-    anime.genres = meta.genres;
+    anime.genres = Labels.genres(meta.genres);
     anime.score = meta.score;
     anime.popularity = meta.popularity;
     anime.studios = meta.studios;
     anime.year = meta.year;
-    anime.type = meta.type;
-    anime.status = meta.status;
+    anime.type = Labels.format(meta.type);
+    anime.status = Labels.status(meta.status);
     anime.episodesCount = meta.episodes;
     anime.metaFetched = true;
     anime.metaFailed = false;

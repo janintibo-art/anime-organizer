@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../models/anime_meta.dart';
+import '../models/labels.dart';
 import '../services/anilist_api.dart';
 import '../services/jikan_api.dart';
 import '../services/animethemes_api.dart';
@@ -406,7 +407,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           Text(
             [
               if (meta.year != null) '${meta.year}',
-              if (meta.genres.isNotEmpty) meta.genres.first,
+              if (meta.genres.isNotEmpty) Labels.genre(meta.genres.first),
             ].join(' · '),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
