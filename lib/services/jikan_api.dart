@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/anime_meta.dart';
+import 'http_client.dart';
 
 export '../models/anime_meta.dart';
 
@@ -92,7 +93,9 @@ class JikanApi {
       await _gate();
       try {
         final uri = Uri.https('api.jikan.moe', '/v4/anime', params);
-        final res = await http.get(uri).timeout(const Duration(seconds: 25));
+        final res = await http
+            .get(uri, headers: AppHttp.headers())
+            .timeout(const Duration(seconds: 25));
         if (res.statusCode == 429) {
           final retry = double.tryParse(res.headers['retry-after'] ?? '') ?? 2;
           await Future<void>.delayed(
@@ -133,7 +136,9 @@ class JikanApi {
           '$_base/anime?q=${Uri.encodeQueryComponent(query)}'
           '&limit=$limit&sfw=true&order_by=members&sort=desc',
         );
-        final res = await http.get(uri).timeout(const Duration(seconds: 20));
+        final res = await http
+            .get(uri, headers: AppHttp.headers())
+            .timeout(const Duration(seconds: 20));
 
         if (res.statusCode == 429) {
           final retry = double.tryParse(res.headers['retry-after'] ?? '') ?? 2;

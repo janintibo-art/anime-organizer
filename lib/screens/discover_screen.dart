@@ -5,6 +5,7 @@ import '../main.dart';
 import '../models/anime_meta.dart';
 import '../services/anilist_api.dart';
 import '../services/jikan_api.dart';
+import '../services/kitsu_api.dart';
 import '../services/library_controller.dart';
 import 'discover_detail_screen.dart';
 
@@ -86,6 +87,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     if (_loading || !_hasNext || _wishlistOnly) return;
     setState(() => _loading = true);
 
+    // Une recherche passe aussi par les secours si AniList est coupe.
     final result = await AniListApi.browse(
       page: _page,
       perPage: 30,
@@ -112,6 +114,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         items = backup;
         hasNext = backup.length >= 20;
         notice = 'AniList ne répond pas, liste fournie par MyAnimeList.';
+      } else {
+        final third = await KitsuApi.browse(
+          page: _page,
+          perPage: 24,
+          sort: _sort,
+          genre: _genre.isEmpty ? null : _genre,
+          format: _format.isEmpty ? null : _format,
+        );
+        if (third.isNotEmpty) {
+          items = third;
+          hasNext = third.length >= 20;
+          notice = 'AniList et MyAnimeList indisponibles, liste fournie par Kitsu.';
+        }
       }
     }
 

@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'http_client.dart';
+
 /// Enregistre les affiches sur le disque pour que la bibliothèque reste
 /// illustrée sans connexion, et pour éviter de retélécharger à chaque écran.
 class PosterCache {
@@ -34,7 +36,9 @@ class PosterCache {
       if (file.existsSync() && await file.length() > 1024) return file.path;
 
       final res =
-          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 25));
+          await http
+          .get(Uri.parse(url), headers: AppHttp.headers(accept: 'image/*'))
+          .timeout(const Duration(seconds: 25));
       if (res.statusCode != 200 || res.bodyBytes.length < 1024) return null;
       await file.writeAsBytes(res.bodyBytes, flush: true);
       return file.path;

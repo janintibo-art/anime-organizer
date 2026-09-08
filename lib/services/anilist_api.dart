@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/anime_meta.dart';
+import 'http_client.dart';
 
 export '../models/anime_meta.dart';
 
@@ -111,10 +112,7 @@ query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$format:MediaFormat
         final res = await http
             .post(
               Uri.parse(_url),
-              headers: const {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-              },
+              headers: AppHttp.headers(json: true),
               body: jsonEncode({'query': query, 'variables': variables}),
             )
             .timeout(const Duration(seconds: 25));
@@ -175,10 +173,7 @@ query($id:Int){
       final res = await http
           .post(
             Uri.parse(_url),
-            headers: const {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
+            headers: AppHttp.headers(json: true),
             body: jsonEncode({
               'query': query,
               'variables': {'id': id}
@@ -216,10 +211,7 @@ query($id:Int){
         final res = await http
             .post(
               Uri.parse(_url),
-              headers: const {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-              },
+              headers: AppHttp.headers(json: true),
               body: jsonEncode({
                 'query': _query,
                 'variables': {'search': query, 'perPage': limit},

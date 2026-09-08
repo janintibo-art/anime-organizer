@@ -102,9 +102,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     label: 'Source',
                     value: s.metaSource,
                     items: const {
-                      'auto': 'AniList, puis MyAnimeList si besoin',
+                      'auto': 'AniList, puis MyAnimeList, puis Kitsu',
                       'anilist': 'AniList seulement',
                       'jikan': 'MyAnimeList seulement',
+                      'kitsu': 'Kitsu seulement',
                     },
                     onChanged: (v) =>
                         library.updateSettings((s) => s.metaSource = v),

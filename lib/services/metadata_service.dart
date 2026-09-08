@@ -3,6 +3,7 @@ import 'dart:math';
 import '../models/anime_meta.dart';
 import 'anilist_api.dart';
 import 'jikan_api.dart';
+import 'kitsu_api.dart';
 
 /// Choisit la source de metadonnees.
 /// En mode automatique : AniList d'abord (rapide et complet), Jikan en
@@ -173,10 +174,16 @@ class MetadataService {
         return AniListApi.searchMany(title, limit: limit);
       case 'jikan':
         return JikanApi.searchMany(title, limit: limit);
+      case 'kitsu':
+        return KitsuApi.search(title, limit: limit);
       default:
+        // Trois sources d'affilee : si AniList est coupe et MyAnimeList
+        // surcharge, Kitsu prend le relais.
         final primary = await AniListApi.searchMany(title, limit: limit);
         if (primary.isNotEmpty) return primary;
-        return JikanApi.searchMany(title, limit: limit);
+        final secondary = await JikanApi.searchMany(title, limit: limit);
+        if (secondary.isNotEmpty) return secondary;
+        return KitsuApi.search(title, limit: limit);
     }
   }
 }

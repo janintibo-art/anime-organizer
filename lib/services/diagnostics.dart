@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'anilist_api.dart';
+import 'http_client.dart';
 import 'jikan_api.dart';
+import 'kitsu_api.dart';
 
 /// Test de connexion : trois appels réels, et le message d'erreur affiché
 /// tel quel. Sans permission réseau, on obtient une SocketException ;
@@ -19,14 +21,24 @@ class Diagnostics {
 
     lines.add(await _anilist());
     lines.add(await _jikan());
+    lines.add(await _kitsu());
 
     return lines;
+  }
+
+  static Future<String> _kitsu() async {
+    final results = await KitsuApi.search('naruto', limit: 1);
+    if (results.isEmpty) {
+      final reason = KitsuApi.lastError ?? 'aucun résultat';
+      return 'Kitsu : ÉCHEC — $reason';
+    }
+    return 'Kitsu : OK — exemple reçu « ${results.first.title} »';
   }
 
   static Future<String> _simple(String label, String url) async {
     try {
       final res = await http
-          .get(Uri.parse(url))
+          .get(Uri.parse(url), headers: AppHttp.headers())
           .timeout(const Duration(seconds: 15));
       return '$label : OK (HTTP ${res.statusCode})';
     } catch (e) {
@@ -39,10 +51,7 @@ class Diagnostics {
       final res = await http
           .post(
             Uri.parse('https://graphql.anilist.co'),
-            headers: const {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
+            headers: AppHttp.headers(json: true),
             body: jsonEncode({
               'query': '{Page(page:1,perPage:1){media(type:ANIME){id title{romaji}}}}'
             }),
@@ -70,7 +79,8 @@ class Diagnostics {
   static Future<String> _jikan() async {
     try {
       final res = await http
-          .get(Uri.parse('https://api.jikan.moe/v4/anime?q=naruto&limit=1'))
+          .get(Uri.parse('https://api.jikan.moe/v4/anime?q=naruto&limit=1'),
+              headers: AppHttp.headers())
           .timeout(const Duration(seconds: 20));
       if (res.statusCode != 200) {
         return 'MyAnimeList : ÉCHEC — HTTP ${res.statusCode}';
