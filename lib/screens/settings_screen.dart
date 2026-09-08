@@ -311,6 +311,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: (v) =>
                         library.updateSettings((s) => s.skipIntroSeconds = v),
                   ),
+                  _switch(
+                    value: s.hardwareDecoding,
+                    onChanged: (v) =>
+                        library.updateSettings((s) => s.hardwareDecoding = v),
+                    title: 'Décodage matériel',
+                    subtitle:
+                        'À désactiver si une vidéo reste noire ou saccade. '
+                        'Prend effet au prochain épisode lancé.',
+                  ),
                   _field(
                     controller: _audioLang,
                     label: 'Langue audio préférée',

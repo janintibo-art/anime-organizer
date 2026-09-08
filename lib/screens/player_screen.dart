@@ -35,7 +35,14 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   late final Player _player = Player();
-  late final VideoController _controller = VideoController(_player);
+  // Le décodage matériel se décide à la construction : le changer suppose
+  // de relancer la lecture, ce que le réglage annonce.
+  late final VideoController _controller = VideoController(
+    _player,
+    configuration: VideoControllerConfiguration(
+      enableHardwareAcceleration: library.settings.hardwareDecoding,
+    ),
+  );
   final FocusNode _focus = FocusNode();
 
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -113,6 +120,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (!mounted) return;
       setState(() => _tracks = t);
       _applyPreferredLanguages(t);
+    }));
+
+    // Sans ça, un codec absent se traduit par un écran noir muet.
+    _subs.add(_player.stream.error.listen((message) {
+      if (message.trim().isEmpty) return;
+      _flash('Erreur de lecture : $message');
     }));
 
     _subs.add(_player.stream.completed.listen((done) {
@@ -728,6 +741,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         label: const Text('Pistes audio et sous-titres'),
                       ),
                       OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _showTechnical();
+                        },
+                        icon: const Icon(Icons.memory, size: 18),
+                        label: const Text('Informations techniques'),
+                      ),
+                      OutlinedButton.icon(
                         onPressed: _searchingSubtitles
                             ? null
                             : () {
@@ -799,6 +820,119 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  /// Ce que le lecteur voit réellement du fichier. À consulter quand une
+  /// vidéo refuse de se lire ou que l'image saccade.
+  void _showTechnical() {
+    final episode = widget.episodes.isEmpty
+        ? null
+        : widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+    final state = _player.state;
+    final tracks = _tracks;
+
+    String duree(Duration d) {
+      final h = d.inHours;
+      final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+      final sec = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+      return h > 0 ? '$h:$m:$sec' : '$m:$sec';
+    }
+
+    final lignes = <List<String>>[
+      if (episode != null)
+        ['Fichier', episode.name],
+      if (episode != null)
+        ['Format du conteneur', episode.path.split('.').last.toUpperCase()],
+      [
+        'Résolution',
+        (state.width == null || state.height == null)
+            ? 'inconnue'
+            : '${state.width} × ${state.height}'
+      ],
+      ['Durée', duree(state.duration)],
+      [
+        'Débit audio',
+        state.audioBitrate == null
+            ? 'inconnu'
+            : '${(state.audioBitrate! / 1000).round()} kbit/s'
+      ],
+      [
+        'Pistes audio',
+        tracks == null
+            ? 'en cours de lecture'
+            : '${tracks.audio.where((t) => t.id != 'auto').length}'
+      ],
+      [
+        'Pistes de sous-titres',
+        tracks == null ? 'en cours de lecture' : '${tracks.subtitle.length}'
+      ],
+      if (episode != null && episode.subtitles.isNotEmpty)
+        ['Sous-titres externes', '${episode.subtitles.length} fichier(s)'],
+      if (episode != null && episode.externalAudio.isNotEmpty)
+        ['Audio externe', '${episode.externalAudio.length} fichier(s)'],
+      [
+        'Décodage matériel',
+        library.settings.hardwareDecoding ? 'activé' : 'désactivé'
+      ],
+      ['Vitesse', '${_rate}x'],
+    ];
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Palette.surface,
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(width: 3, height: 16, color: Palette.shu),
+                  const SizedBox(width: 8),
+                  const Text('Informations techniques',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              for (final ligne in lignes)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 150,
+                        child: Text(ligne[0],
+                            style: TextStyle(
+                                color: Palette.muted, fontSize: 12)),
+                      ),
+                      Expanded(
+                        child: SelectableText(
+                          ligne[1],
+                          style: TextStyle(
+                              color: Palette.text, fontSize: 12.5, height: 1.3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 14),
+              Text(
+                'Si la vidéo reste noire ou saccade, essaie de désactiver le '
+                'décodage matériel dans les réglages du lecteur, puis relance '
+                'l\'épisode. Certains fichiers HEVC 10 bits et les pistes DTS '
+                'ne sont pas gérés par tous les appareils.',
+                style: TextStyle(
+                    color: Palette.muted, fontSize: 11.5, height: 1.45),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

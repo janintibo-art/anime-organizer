@@ -39,6 +39,7 @@ class AppSettings {
   int seekStepSeconds = 10;
   double subtitleSize = 32;
   String videoFit = 'contain'; // contain | cover | fill
+  bool hardwareDecoding = true;
   String preferredAudio = '';
   String preferredSubtitle = 'fr';
   bool autoFetchSubtitles = true;
@@ -77,6 +78,7 @@ class AppSettings {
         'seekStepSeconds': seekStepSeconds,
         'subtitleSize': subtitleSize,
         'videoFit': videoFit,
+        'hardwareDecoding': hardwareDecoding,
         'preferredAudio': preferredAudio,
         'preferredSubtitle': preferredSubtitle,
         'autoFetchSubtitles': autoFetchSubtitles,
@@ -114,6 +116,7 @@ class AppSettings {
     s.seekStepSeconds = j['seekStepSeconds'] as int? ?? 10;
     s.subtitleSize = (j['subtitleSize'] as num?)?.toDouble() ?? 32;
     s.videoFit = j['videoFit'] as String? ?? 'contain';
+    s.hardwareDecoding = j['hardwareDecoding'] as bool? ?? true;
     s.preferredAudio = j['preferredAudio'] as String? ?? '';
     s.preferredSubtitle = j['preferredSubtitle'] as String? ?? 'fr';
     s.autoFetchSubtitles = j['autoFetchSubtitles'] as bool? ?? true;
