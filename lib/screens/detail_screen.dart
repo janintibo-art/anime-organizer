@@ -99,14 +99,14 @@ class _DetailScreenState extends State<DetailScreen> {
           final r = results[i];
           return ListTile(
             leading: r.imageUrl == null
-                ? const Icon(Icons.movie_outlined, color: Palette.muted)
+                ? Icon(Icons.movie_outlined, color: Palette.muted)
                 : SizedBox(
                     width: 40,
                     child: CachedNetworkImage(
                         imageUrl: r.imageUrl!, fit: BoxFit.cover)),
             title: Text(r.title, style: const TextStyle(fontSize: 14)),
             subtitle: Text(r.summaryLine,
-                style: const TextStyle(color: Palette.muted, fontSize: 12)),
+                style: TextStyle(color: Palette.muted, fontSize: 12)),
             onTap: () => Navigator.pop(ctx, r),
           );
         },
@@ -168,7 +168,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   SizedBox(
                     width: 68,
                     child: Text(row[0],
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: Palette.muted, fontSize: 11.5)),
                   ),
                   Expanded(
@@ -251,7 +251,7 @@ class _DetailScreenState extends State<DetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
+            children: [
               Icon(Icons.fact_check_outlined, size: 16, color: Palette.kin),
               SizedBox(width: 8),
               Text('État de la collection',
@@ -263,7 +263,7 @@ class _DetailScreenState extends State<DetailScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(line,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Palette.muted, fontSize: 12, height: 1.4)),
             ),
         ],
@@ -290,7 +290,7 @@ class _DetailScreenState extends State<DetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (_working)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.only(bottom: 12),
                           child: LinearProgressIndicator(
                               minHeight: 3,
@@ -311,7 +311,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         synopsis == null || synopsis.isEmpty
                             ? 'Pas encore de synopsis. Utilise « Corriger la fiche » pour retrouver la série.'
                             : synopsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                             height: 1.55, fontSize: 14.5, color: Palette.text),
                       ),
                       const SizedBox(height: 14),
@@ -332,7 +332,7 @@ class _DetailScreenState extends State<DetailScreen> {
                                 _showOriginal
                                     ? 'Voir la traduction'
                                     : 'Voir l\'original',
-                                style: const TextStyle(color: Palette.kin),
+                                style: TextStyle(color: Palette.kin),
                               ),
                             ),
                           OutlinedButton.icon(
@@ -370,7 +370,7 @@ class _DetailScreenState extends State<DetailScreen> {
                               anime.finished
                                   ? 'Tout marquer non vu'
                                   : 'Tout marquer vu',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: Palette.muted, fontSize: 12.5),
                             ),
                           ),
@@ -387,7 +387,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
                       child: Text(
                         entry.key,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: Palette.kin,
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -459,7 +459,7 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
             ),
             // Degrade bas : le texte reste lisible sans ternir l'affiche.
-            const DecoratedBox(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
@@ -504,7 +504,7 @@ class _DetailScreenState extends State<DetailScreen> {
                             anime.nativeTitle!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: Palette.muted, fontSize: 12),
                           ),
                         const SizedBox(height: 3),
@@ -512,7 +512,7 @@ class _DetailScreenState extends State<DetailScreen> {
                           anime.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 20,
                             height: 1.15,
                             fontWeight: FontWeight.w700,
@@ -535,7 +535,7 @@ class _DetailScreenState extends State<DetailScreen> {
                           const SizedBox(height: 4),
                           Text(
                             '${anime.watchedCount} sur ${anime.episodes.length} épisodes vus',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: Palette.muted, fontSize: 11),
                           ),
                         ],
@@ -609,7 +609,7 @@ class _DetailScreenState extends State<DetailScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(item[0],
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Palette.muted,
                         fontSize: 9.5,
                         letterSpacing: 0.8)),
@@ -639,7 +639,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   borderRadius: BorderRadius.circular(radiusSm),
                 ),
                 child: Text(g,
-                    style: const TextStyle(color: Palette.kin, fontSize: 12)),
+                    style: TextStyle(color: Palette.kin, fontSize: 12)),
               ))
           .toList(),
     );
@@ -664,11 +664,11 @@ class _DetailScreenState extends State<DetailScreen> {
             shape: BoxShape.circle,
           ),
           child: seen
-              ? const Icon(Icons.check, size: 16, color: Palette.ink)
+              ? Icon(Icons.check, size: 16, color: Palette.ink)
               : Text(
                   e.bonus ? '★' : '${e.number ?? index + 1}',
                   style:
-                      const TextStyle(fontSize: 12, color: Palette.muted)),
+                      TextStyle(fontSize: 12, color: Palette.muted)),
         ),
       ),
       title: Text(
@@ -681,13 +681,13 @@ class _DetailScreenState extends State<DetailScreen> {
         ),
       ),
       subtitle: missing
-          ? const Text('Fichier introuvable',
+          ? Text('Fichier introuvable',
               style: TextStyle(fontSize: 11.5, color: Palette.shu))
           : Text(e.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, color: Palette.muted)),
-      trailing: const Icon(Icons.play_circle_outline, color: Palette.muted),
+              style: TextStyle(fontSize: 11, color: Palette.muted)),
+      trailing: Icon(Icons.play_circle_outline, color: Palette.muted),
       onTap: missing ? null : () => _play(index),
     );
   }

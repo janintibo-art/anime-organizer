@@ -283,7 +283,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     const Text('Découvrir'),
                   ],
                 ),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(left: 11, top: 1),
                   child: Text(
                     'AniList · MyAnimeList · Kitsu',
@@ -303,11 +303,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Text(_notice!,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: Palette.kin, fontSize: 11.5)),
                 ),
               if (_loading && _items.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 3),
                   child: LinearProgressIndicator(
                       minHeight: 3,
@@ -324,7 +324,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                 ? 'Ta liste « à voir » est vide. Ajoute des séries depuis le catalogue.'
                                 : (_error ?? 'Chargement du catalogue…'),
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Palette.muted),
+                            style: TextStyle(color: Palette.muted),
                           ),
                         ),
                       )
@@ -353,7 +353,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 const Text('Derniers épisodes'),
               ],
             ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(left: 11, top: 1),
               child: Text('Sorties récentes',
                   style: TextStyle(
@@ -377,10 +377,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Text(_releasesNotice!,
-                  style: const TextStyle(color: Palette.kin, fontSize: 11.5)),
+                  style: TextStyle(color: Palette.kin, fontSize: 11.5)),
             ),
           if (_releasesLoading && _releases.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 4),
               child: LinearProgressIndicator(
                   minHeight: 3,
@@ -398,7 +398,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             : 'Aucune sortie récupérée. Les trois calendriers '
                                 'sont peut-être indisponibles.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Palette.muted),
+                        style: TextStyle(color: Palette.muted),
                       ),
                     ),
                   )
@@ -409,7 +409,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, i) {
                       if (i >= _releases.length) {
-                        return const Padding(
+                        return Padding(
                           padding: EdgeInsets.symmetric(vertical: 16),
                           child: Center(
                             child: SizedBox(
@@ -484,7 +484,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     if (release.whenLabel.isNotEmpty) ...[
                       const SizedBox(width: 8),
                       Text(release.whenLabel,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: Palette.muted, fontSize: 11.5)),
                     ],
                   ],
@@ -493,13 +493,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'Tu as ${local.episodes.length} fichier(s) de cette série',
-                    style: const TextStyle(color: Palette.kin, fontSize: 11),
+                    style: TextStyle(color: Palette.kin, fontSize: 11),
                   ),
                 ],
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: Palette.muted, size: 20),
+          Icon(Icons.chevron_right, color: Palette.muted, size: 20),
         ],
       ),
     );
@@ -589,7 +589,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         color: const Color(0xE6D6B86A),
                         padding: const EdgeInsets.symmetric(vertical: 3),
                         alignment: Alignment.center,
-                        child: const Text(
+                        child: Text(
                           'Dans ta bibliothèque',
                           style: TextStyle(
                               color: Palette.ink,
@@ -599,7 +599,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       ),
                     ),
                   if (wished && local == null)
-                    const Positioned(
+                    Positioned(
                       top: 6,
                       right: 6,
                       child: Icon(Icons.bookmark,
@@ -628,7 +628,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ].join(' · '),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11.5, color: Palette.kin),
+            style: TextStyle(fontSize: 11.5, color: Palette.kin),
           ),
         ],
       ),
@@ -655,11 +655,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             decoration: fieldDecoration(
               hintText: 'Chercher dans le catalogue',
               prefixIcon:
-                  const Icon(Icons.search, color: Palette.muted, size: 20),
+                  Icon(Icons.search, color: Palette.muted, size: 20),
               suffixIcon: _search.isEmpty
                   ? null
                   : IconButton(
-                      icon: const Icon(Icons.close,
+                      icon: Icon(Icons.close,
                           color: Palette.muted, size: 18),
                       onPressed: () {
                         _searchController.clear();
@@ -770,7 +770,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       },
       itemBuilder: (_) => [
         const PopupMenuItem(value: '', child: Text('Tous genres')),
-        const PopupMenuItem(
+        PopupMenuItem(
           enabled: false,
           height: 30,
           child: Text('Genres',
@@ -785,7 +785,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   color: _genre == g ? Palette.shu : Palette.text),
             ),
           ),
-        const PopupMenuItem(
+        PopupMenuItem(
           enabled: false,
           height: 30,
           child: Text('Thèmes',
@@ -858,12 +858,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(label,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12.5,
                     color: Palette.text,
                     fontWeight: FontWeight.w500)),
             const SizedBox(width: 4),
-            const Icon(Icons.expand_more, size: 16, color: Palette.muted),
+            Icon(Icons.expand_more, size: 16, color: Palette.muted),
           ],
         ),
       ),

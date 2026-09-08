@@ -214,7 +214,7 @@ class AnimeRow extends StatelessWidget {
                     ].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Palette.muted, fontSize: 11.5),
+                    style: TextStyle(color: Palette.muted, fontSize: 11.5),
                   ),
                   if (anime.progress > 0) ...[
                     const SizedBox(height: 6),
@@ -235,7 +235,7 @@ class AnimeRow extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(left: 10),
                 child: Text(anime.score!.toStringAsFixed(1),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Palette.kin,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600)),

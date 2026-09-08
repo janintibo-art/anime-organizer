@@ -117,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     library.animes.isEmpty
                         ? 'アニメ ライブラリ'
                         : '${library.animes.length} séries · ${library.totalEpisodes} épisodes',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Palette.muted,
                       fontSize: 10.5,
                       letterSpacing: 0.8,
@@ -177,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (items.isEmpty) {
-      return const Center(
+      return Center(
         child: Text('Aucune série ne correspond à ce filtre.',
             style: TextStyle(color: Palette.muted)),
       );
@@ -223,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontSize: 15, fontWeight: FontWeight.w700)),
             const SizedBox(width: 8),
             Text('$count',
-                style: const TextStyle(color: Palette.muted, fontSize: 12)),
+                style: TextStyle(color: Palette.muted, fontSize: 12)),
           ],
         ),
       ),
@@ -314,7 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(library.status,
-              style: const TextStyle(color: Palette.muted, fontSize: 12)),
+              style: TextStyle(color: Palette.muted, fontSize: 12)),
           const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(radiusSm),
@@ -343,12 +343,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   onChanged: (v) => setState(() => _query = v),
                   decoration: fieldDecoration(
                     hintText: 'Chercher un titre ou un genre',
-                    prefixIcon: const Icon(Icons.search,
+                    prefixIcon: Icon(Icons.search,
                         color: Palette.muted, size: 20),
                     suffixIcon: _query.isEmpty
                         ? null
                         : IconButton(
-                            icon: const Icon(Icons.close,
+                            icon: Icon(Icons.close,
                                 color: Palette.muted, size: 18),
                             onPressed: () {
                               _searchController.clear();
@@ -497,13 +497,13 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Text(
               labels[library.settings.sortMode] ?? 'A → Z',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12.5,
                   color: Palette.text,
                   fontWeight: FontWeight.w500),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.expand_more, size: 16, color: Palette.muted),
+            Icon(Icons.expand_more, size: 16, color: Palette.muted),
           ],
         ),
       ),
@@ -517,14 +517,14 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset('assets/logo.png', width: 240, fit: BoxFit.contain),
+            Image.asset(Palette.logo, width: 240, fit: BoxFit.contain),
             const SizedBox(height: 24),
             const Text(
               'Ta bibliothèque est vide',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Choisis un dossier contenant tes vidéos. Chaque sous-dossier devient une série, '
               'et les fiches se complètent toutes seules.',
               textAlign: TextAlign.center,

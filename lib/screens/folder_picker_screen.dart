@@ -284,7 +284,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
   Widget _selectionBar(String current) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Palette.surface,
         border: Border(top: BorderSide(color: Palette.line)),
       ),
@@ -294,7 +294,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
         children: [
           Text(
             'Dossier sélectionné',
-            style: const TextStyle(
+            style: TextStyle(
                 color: Palette.muted, fontSize: 10.5, letterSpacing: 0.8),
           ),
           const SizedBox(height: 3),
@@ -309,7 +309,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
             children: [
               Expanded(
                 child: _previewing
-                    ? const Text('Analyse en cours…',
+                    ? Text('Analyse en cours…',
                         style: TextStyle(color: Palette.muted, fontSize: 12))
                     : Text(
                         _previewVideos == 0
@@ -363,7 +363,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
 
   Widget _rootList() {
     if (_roots.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(32),
           child: Text(
@@ -450,7 +450,7 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
           const Text('Accès à tous les fichiers désactivé',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Sans cette autorisation, la carte SD et certains dossiers restent invisibles.',
             style: TextStyle(color: Palette.muted, fontSize: 12.5, height: 1.4),
           ),
@@ -480,14 +480,14 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
       style: TextButton.styleFrom(
           minimumSize: Size.zero,
           padding: const EdgeInsets.symmetric(horizontal: 6)),
-      child: const Icon(Icons.home, size: 16, color: Palette.muted),
+      child: Icon(Icons.home, size: 16, color: Palette.muted),
     ));
 
     for (var i = 0; i < segments.length; i++) {
       built = i == 0 ? segments[i] : p.join(built, segments[i]);
       final target = built;
       final last = i == segments.length - 1;
-      crumbs.add(const Text('/',
+      crumbs.add(Text('/',
           style: TextStyle(color: Palette.line, fontSize: 12)));
       crumbs.add(TextButton(
         onPressed: last ? null : () => _open(target),
@@ -526,11 +526,11 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(_error!,
-                style: const TextStyle(color: Palette.shu, fontSize: 13)),
+                style: TextStyle(color: Palette.shu, fontSize: 13)),
           ),
         Expanded(
           child: _children.isEmpty && _files.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text('Rien à afficher ici.',
                       style: TextStyle(color: Palette.muted)),
                 )
@@ -541,24 +541,24 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
                     if (i < _children.length) {
                       final d = _children[i];
                       return ListTile(
-                        leading: const Icon(Icons.folder_outlined,
+                        leading: Icon(Icons.folder_outlined,
                             color: Palette.kin),
                         title: Text(p.basename(d.path),
                             style: const TextStyle(fontSize: 14)),
-                        trailing: const Icon(Icons.chevron_right,
+                        trailing: Icon(Icons.chevron_right,
                             color: Palette.muted, size: 20),
                         onTap: () => _open(d.path),
                       );
                     }
                     final f = _files[i - _children.length];
                     return ListTile(
-                      leading: const Icon(Icons.description_outlined,
+                      leading: Icon(Icons.description_outlined,
                           color: Palette.shu),
                       title: Text(p.basename(f.path),
                           style: const TextStyle(fontSize: 13.5)),
                       subtitle: Text(
                         '${(f.lengthSync() / 1024).toStringAsFixed(0)} Ko',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: Palette.muted, fontSize: 11.5),
                       ),
                       onTap: () => Navigator.pop(context, f.path),

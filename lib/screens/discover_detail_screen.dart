@@ -117,7 +117,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                       ],
                       const SizedBox(height: 18),
                       if (_translating)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.only(bottom: 10),
                           child: LinearProgressIndicator(
                               minHeight: 3,
@@ -128,7 +128,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                         synopsis == null || synopsis.isEmpty
                             ? 'Pas de synopsis pour cette série.'
                             : synopsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                             height: 1.55, fontSize: 14.5, color: Palette.text),
                       ),
                       if (_translated == null && meta.synopsis != null) ...[
@@ -218,7 +218,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                 ),
               ),
             ),
-            const DecoratedBox(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
@@ -261,7 +261,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                             meta.titleNative!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: Palette.muted, fontSize: 12),
                           ),
                         const SizedBox(height: 3),
@@ -269,7 +269,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                           meta.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 20,
                             height: 1.15,
                             fontWeight: FontWeight.w700,
@@ -299,7 +299,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_outline, color: Palette.kin, size: 20),
+          Icon(Icons.check_circle_outline, color: Palette.kin, size: 20),
           const SizedBox(width: 10),
           const Expanded(
             child: Text('Déjà dans ta bibliothèque',
@@ -345,7 +345,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                   SizedBox(
                     width: 68,
                     child: Text(row[0],
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: Palette.muted, fontSize: 11.5)),
                   ),
                   Expanded(
@@ -390,7 +390,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(item[0],
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Palette.muted,
                         fontSize: 9.5,
                         letterSpacing: 0.8)),
@@ -420,7 +420,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                   borderRadius: BorderRadius.circular(radiusSm),
                 ),
                 child: Text(g,
-                    style: const TextStyle(color: Palette.kin, fontSize: 12)),
+                    style: TextStyle(color: Palette.kin, fontSize: 12)),
               ))
           .toList(),
     );

@@ -97,7 +97,7 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 22),
                 Opacity(
                   opacity: _title.value,
-                  child: const Column(
+                  child: Column(
                     children: [
                       Text(
                         'Anime Organizer',

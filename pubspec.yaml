@@ -27,6 +27,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/logo_grimoire.png
+    - assets/logo_aventure.png
+    - assets/logo_sorciere.png
     - assets/icon.png
     - assets/seed_anime.json
 

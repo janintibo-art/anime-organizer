@@ -99,17 +99,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'Bibliothèque',
                 children: [
                   if (library.folders.isEmpty)
-                    const Text('Aucun dossier pour l\'instant.',
+                    Text('Aucun dossier pour l\'instant.',
                         style: TextStyle(color: Palette.muted, fontSize: 13)),
                   for (final f in library.folders)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       dense: true,
                       leading:
-                          const Icon(Icons.folder_outlined, color: Palette.kin),
+                          Icon(Icons.folder_outlined, color: Palette.kin),
                       title: Text(f, style: const TextStyle(fontSize: 12.5)),
                       trailing: IconButton(
-                        icon: const Icon(Icons.close,
+                        icon: Icon(Icons.close,
                             color: Palette.muted, size: 18),
                         onPressed: () => _confirmRemoveFolder(f),
                       ),
@@ -132,14 +132,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     '${SeedDatabase.count} séries connues hors connexion, avec leurs titres '
                     'en romaji, anglais, français et japonais. Elles servent à traduire un nom '
                     'de dossier en titre que les bases en ligne reconnaissent.',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Palette.muted, fontSize: 12, height: 1.4),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     '${library.knownTitles.length} correspondance(s) mémorisée(s) '
                     'depuis tes corrections. Ces dossiers ne seront plus recherchés.',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Palette.kin, fontSize: 12, height: 1.4),
                   ),
                   if (library.knownTitles.isNotEmpty) ...[
@@ -150,7 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       label: const Text('Oublier les correspondances'),
                     ),
                   ],
-                  const Divider(color: Palette.line, height: 28),
+                  Divider(color: Palette.line, height: 28),
                   _indexSection(),
                 ],
               ),
@@ -325,18 +325,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onSubmit: (v) =>
                         library.updateSettings((s) => s.preferredSubtitle = v),
                   ),
-                  const Text(
+                  Text(
                     'Les fichiers .srt ou .ass posés à côté des vidéos sont chargés '
                     'automatiquement, ainsi que les pistes audio livrées à part.',
                     style: TextStyle(
                         color: Palette.muted, fontSize: 12, height: 1.4),
                   ),
-                  const Divider(color: Palette.line, height: 28),
+                  Divider(color: Palette.line, height: 28),
                   const Text('Sous-titres en ligne',
                       style: TextStyle(
                           fontSize: 14, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'Quand un épisode n\'a pas de sous-titres dans ta langue, '
                     'ils sont cherchés sur OpenSubtitles. La recherche utilise '
                     'l\'empreinte du fichier, ce qui donne des sous-titres '
@@ -383,7 +383,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.auto_awesome,
                 title: 'Assistant IA',
                 children: [
-                  const Text(
+                  Text(
                     'Quand AniList et MyAnimeList ne reconnaissent pas un dossier, '
                     'l\'IA identifie la série et donne son titre en romaji, en anglais, '
                     'en français et en japonais.',
@@ -466,7 +466,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                   if (_aiBusy)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(top: 12),
                       child: LinearProgressIndicator(
                           minHeight: 3,
@@ -504,7 +504,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
                       child: Text(_aiMessage!,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: Palette.kin, fontSize: 12, height: 1.4)),
                     ),
                 ],
@@ -545,7 +545,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.network_check,
                 title: 'Diagnostic',
                 children: [
-                  const Text(
+                  Text(
                     'Vérifie que l\'application atteint bien Internet et les deux bases de données. '
                     'À lancer si aucune image ni description n\'apparaît.',
                     style: TextStyle(
@@ -558,7 +558,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     label: const Text('Tester la connexion'),
                   ),
                   if (_diagBusy)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(top: 12),
                       child: LinearProgressIndicator(
                           minHeight: 3,
@@ -583,7 +583,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.save_outlined,
                 title: 'Sauvegarde',
                 children: [
-                  const Text(
+                  Text(
                     'Un fichier unique contient les fiches, les favoris et la progression. '
                     'Les vidéos ne sont pas copiées.',
                     style: TextStyle(
@@ -612,6 +612,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.palette_outlined,
                 title: 'Apparence',
                 children: [
+                  const Text('Thème',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  for (final theme in appThemes) _themeTile(theme, s.themeId),
+                  const SizedBox(height: 14),
                   _dropdown<String>(
                     label: 'Affichage de la collection',
                     value: s.viewMode,
@@ -627,7 +633,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _dangerZone(),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'Les vidéos restent sur ton disque : l\'application ne fait que les lister et les lire. '
                 'Seuls les titres sont envoyés aux services de métadonnées et de traduction.',
                 style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.5),
@@ -687,7 +693,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
+            children: [
               Icon(Icons.warning_amber_rounded, size: 17, color: Palette.shu),
               SizedBox(width: 8),
               Text('Actions sensibles',
@@ -698,7 +704,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Ces actions effacent des données de l\'application. Tes fichiers vidéo ne sont jamais touchés.',
             style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.4),
           ),
@@ -706,7 +712,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               foregroundColor: Palette.shu,
-              side: const BorderSide(color: Palette.shu),
+              side: BorderSide(color: Palette.shu),
             ),
             onPressed: library.busy ? null : _confirmClear,
             icon: const Icon(Icons.delete_sweep_outlined, size: 18),
@@ -728,7 +734,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const Text('Index complet',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           'Environ 40 000 séries avec leurs synonymes et leurs affiches, '
           'reconstruites chaque semaine par ton dépôt GitHub. Une fois '
           'téléchargé, il répond sans connexion.',
@@ -762,7 +768,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Text(_indexMessage!,
-                style: const TextStyle(
+                style: TextStyle(
                     color: Palette.kin, fontSize: 12, height: 1.4)),
           ),
         const SizedBox(height: 10),
@@ -784,7 +790,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        const Text(
+        Text(
           'Données : manami-project / anime-offline-database, '
           'sous licence ODbL 1.0 et CC BY-SA 4.0.',
           style: TextStyle(color: Palette.muted, fontSize: 10.5, height: 1.4),
@@ -837,6 +843,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _refreshIndexSize();
     if (!mounted) return;
     setState(() => _indexMessage = 'Index supprimé.');
+  }
+
+  /// Une ligne par thème, avec sa bannière et ses trois couleurs clés.
+  Widget _themeTile(AppTheme theme, String selectedId) {
+    final selected = theme.id == selectedId;
+
+    return GestureDetector(
+      onTap: () async {
+        await library.updateSettings((s) => s.themeId = theme.id);
+        Palette.apply(theme.id);
+        library.refresh();
+        if (mounted) setState(() {});
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: theme.surface,
+          border: Border.all(
+              color: selected ? theme.shu : theme.line,
+              width: selected ? 2 : 1),
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 62,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: theme.ink,
+                borderRadius: BorderRadius.circular(radiusSm),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                child: Image.asset(theme.logo, fit: BoxFit.contain),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                for (final color in [theme.shu, theme.kin, theme.sakura])
+                  Container(
+                    width: 16,
+                    height: 16,
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: theme.line),
+                    ),
+                  ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(theme.name,
+                          style: TextStyle(
+                              color: theme.text,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700)),
+                      Text(theme.description,
+                          style: TextStyle(
+                              color: theme.muted, fontSize: 11, height: 1.3)),
+                    ],
+                  ),
+                ),
+                if (selected)
+                  Icon(Icons.check_circle, color: theme.shu, size: 20),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _relabel() async {
@@ -978,7 +1062,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: const Text('Annuler')),
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Remplacer',
+              child: Text('Remplacer',
                   style: TextStyle(color: Palette.shu))),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Palette.shu),
@@ -1065,7 +1149,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       onChanged: onChanged,
       title: Text(title, style: const TextStyle(fontSize: 14)),
       subtitle: Text(subtitle,
-          style: const TextStyle(color: Palette.muted, fontSize: 12)),
+          style: TextStyle(color: Palette.muted, fontSize: 12)),
     );
   }
 
@@ -1084,7 +1168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: value,
             isExpanded: true,
             dropdownColor: Palette.raised,
-            style: const TextStyle(color: Palette.text, fontSize: 14),
+            style: TextStyle(color: Palette.text, fontSize: 14),
             items: items.entries
                 .map((e) =>
                     DropdownMenuItem<T>(value: e.key, child: Text(e.value)))

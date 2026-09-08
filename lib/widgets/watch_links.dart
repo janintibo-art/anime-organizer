@@ -40,7 +40,7 @@ class WatchLinks extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'Ouvre une recherche dans ton navigateur.',
           style: TextStyle(color: Palette.muted, fontSize: 11.5),
         ),
@@ -70,11 +70,11 @@ class WatchLinks extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.open_in_new,
+                      Icon(Icons.open_in_new,
                           size: 13, color: Palette.muted),
                       const SizedBox(width: 6),
                       Text(link.label,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12.5, color: Palette.text)),
                     ],
                   ),

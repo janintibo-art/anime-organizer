@@ -64,14 +64,14 @@ class _BulkFixScreenState extends State<BulkFixScreen> {
           final r = results[i];
           return ListTile(
             leading: r.imageUrl == null
-                ? const Icon(Icons.movie_outlined, color: Palette.muted)
+                ? Icon(Icons.movie_outlined, color: Palette.muted)
                 : SizedBox(
                     width: 40,
                     child: CachedNetworkImage(
                         imageUrl: r.imageUrl!, fit: BoxFit.cover)),
             title: Text(r.title, style: const TextStyle(fontSize: 14)),
             subtitle: Text(r.summaryLine,
-                style: const TextStyle(color: Palette.muted, fontSize: 12)),
+                style: TextStyle(color: Palette.muted, fontSize: 12)),
             onTap: () => Navigator.pop(ctx, r),
           );
         },
@@ -98,7 +98,7 @@ class _BulkFixScreenState extends State<BulkFixScreen> {
         return Scaffold(
           appBar: darkAppBar(title: const Text('Fiches à corriger')),
           body: items.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
                     padding: EdgeInsets.all(32),
                     child: Text(
@@ -111,7 +111,7 @@ class _BulkFixScreenState extends State<BulkFixScreen> {
               : Column(
                   children: [
                     if (library.busy)
-                      const LinearProgressIndicator(
+                      LinearProgressIndicator(
                           minHeight: 3,
                           backgroundColor: Palette.raised,
                           color: Palette.shu),
@@ -122,7 +122,7 @@ class _BulkFixScreenState extends State<BulkFixScreen> {
                           Expanded(
                             child: Text(
                               '${items.length} série${items.length > 1 ? 's' : ''} sans fiche',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: Palette.muted, fontSize: 12.5),
                             ),
                           ),
@@ -168,7 +168,7 @@ class _BulkFixScreenState extends State<BulkFixScreen> {
             anime.id,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Palette.muted, fontSize: 11),
+            style: TextStyle(color: Palette.muted, fontSize: 11),
           ),
           const SizedBox(height: 8),
           Row(
@@ -182,7 +182,7 @@ class _BulkFixScreenState extends State<BulkFixScreen> {
               ),
               const SizedBox(width: 8),
               searching
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
@@ -190,7 +190,7 @@ class _BulkFixScreenState extends State<BulkFixScreen> {
                     )
                   : IconButton(
                       onPressed: () => _search(anime),
-                      icon: const Icon(Icons.search, color: Palette.shu),
+                      icon: Icon(Icons.search, color: Palette.shu),
                     ),
             ],
           ),
@@ -198,7 +198,7 @@ class _BulkFixScreenState extends State<BulkFixScreen> {
           Text(
             '${anime.episodes.length} fichier${anime.episodes.length > 1 ? 's' : ''}'
             '${anime.metaFailCount > 0 ? ' · ${anime.metaFailCount} tentative(s)' : ''}',
-            style: const TextStyle(color: Palette.muted, fontSize: 11.5),
+            style: TextStyle(color: Palette.muted, fontSize: 11.5),
           ),
         ],
       ),

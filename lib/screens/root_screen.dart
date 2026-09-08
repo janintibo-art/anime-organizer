@@ -24,7 +24,7 @@ class _RootScreenState extends State<RootScreen> {
     return Scaffold(
       body: IndexedStack(index: _index, children: _pages),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(top: BorderSide(color: Palette.line)),
         ),
         child: BottomNavigationBar(

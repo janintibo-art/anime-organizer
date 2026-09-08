@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/anime.dart';
 import '../models/anime_meta.dart';
+import '../main.dart';
 import '../models/labels.dart';
 import 'metadata_service.dart';
 import 'ai_service.dart';
@@ -55,6 +56,7 @@ class AppSettings {
   // auto | anilist | jikan | kitsu | animethemes | tmdb
   String metaSource = 'auto';
   String tmdbKey = '';
+  String themeId = 'encre';
   String viewMode = 'grid'; // grid | list | genre
   String sortMode = 'alpha'; // alpha | score | year | episodes | recent
 
@@ -89,6 +91,7 @@ class AppSettings {
         'aiWebSearch': aiWebSearch,
         'metaSource': metaSource,
         'tmdbKey': tmdbKey,
+        'themeId': themeId,
         'viewMode': viewMode,
         'sortMode': sortMode,
       };
@@ -125,6 +128,7 @@ class AppSettings {
     s.aiWebSearch = j['aiWebSearch'] as bool? ?? true;
     s.metaSource = j['metaSource'] as String? ?? 'auto';
     s.tmdbKey = j['tmdbKey'] as String? ?? '';
+    s.themeId = j['themeId'] as String? ?? 'encre';
     s.viewMode = j['viewMode'] as String? ?? 'grid';
     s.sortMode = j['sortMode'] as String? ?? 'alpha';
     return s;
@@ -209,6 +213,8 @@ class LibraryController extends ChangeNotifier {
                   AnimeMeta.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??
           [];
+      // Le thème doit être en place avant le premier rendu.
+      Palette.apply(settings.themeId);
       return true;
     } catch (_) {
       // Fichier illisible : on tentera la copie de secours.

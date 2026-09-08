@@ -8,23 +8,141 @@ import 'services/library_controller.dart';
 import 'services/anime_index.dart';
 import 'services/seed_database.dart';
 
-/// Palette calee sur le logo : noir d'encre chaud, rouge de sceau,
-/// or et ivoire, avec un rose sakura utilise avec parcimonie.
-class Palette {
-  static const ink = Color(0xFF0D0B0B);
-  static const surface = Color(0xFF181311);
-  static const raised = Color(0xFF221A17);
-  static const line = Color(0xFF352724);
-  static const shu = Color(0xFFBF2F25);
-  static const kin = Color(0xFFD6B86A);
-  static const sakura = Color(0xFFE3A2AB);
-  static const text = Color(0xFFF4E7D3);
-  static const muted = Color(0xFF9C8A80);
+/// Un thème complet : couleurs et bannière assortie.
+class AppTheme {
+  final String id;
+  final String name;
+  final String description;
+  final String logo;
+  final Color ink;
+  final Color surface;
+  final Color raised;
+  final Color line;
+  final Color shu;
+  final Color kin;
+  final Color sakura;
+  final Color text;
+  final Color muted;
+
+  const AppTheme({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.logo,
+    required this.ink,
+    required this.surface,
+    required this.raised,
+    required this.line,
+    required this.shu,
+    required this.kin,
+    required this.sakura,
+    required this.text,
+    required this.muted,
+  });
 }
 
-/// Arrondis : deux valeurs seulement, pour que tout l'ecran respire pareil.
+const List<AppTheme> appThemes = [
+  AppTheme(
+    id: 'encre',
+    name: 'Encre',
+    description: 'Noir chaud, vermillon de sceau et or',
+    logo: 'assets/logo.png',
+    ink: Color(0xFF0D0B0B),
+    surface: Color(0xFF181311),
+    raised: Color(0xFF221A17),
+    line: Color(0xFF352724),
+    shu: Color(0xFFBF2F25),
+    kin: Color(0xFFD6B86A),
+    sakura: Color(0xFFE3A2AB),
+    text: Color(0xFFF4E7D3),
+    muted: Color(0xFF9C8A80),
+  ),
+  AppTheme(
+    id: 'grimoire',
+    name: 'Grimoire',
+    description: 'Or ancien sur noir profond, rouge sang',
+    logo: 'assets/logo_grimoire.png',
+    ink: Color(0xFF0A0908),
+    surface: Color(0xFF15110E),
+    raised: Color(0xFF1F1913),
+    line: Color(0xFF3A2E20),
+    shu: Color(0xFFB01B1B),
+    kin: Color(0xFFD9B45B),
+    sakura: Color(0xFFC98B8B),
+    text: Color(0xFFF2E7D0),
+    muted: Color(0xFF9A8B72),
+  ),
+  AppTheme(
+    id: 'aventure',
+    name: 'Aventure',
+    description: 'Bleu nuit, rouge vif et or clair',
+    logo: 'assets/logo_aventure.png',
+    ink: Color(0xFF101820),
+    surface: Color(0xFF18222C),
+    raised: Color(0xFF22303C),
+    line: Color(0xFF2E3E4C),
+    shu: Color(0xFFD6453C),
+    kin: Color(0xFFF0B840),
+    sakura: Color(0xFF7FC4E8),
+    text: Color(0xFFF5EEE2),
+    muted: Color(0xFF93A3B0),
+  ),
+  AppTheme(
+    id: 'sorciere',
+    name: 'Sorcière',
+    description: 'Rouge carmin et or, fond terre brûlée',
+    logo: 'assets/logo_sorciere.png',
+    ink: Color(0xFF14100E),
+    surface: Color(0xFF1F1815),
+    raised: Color(0xFF2A211C),
+    line: Color(0xFF3B2E26),
+    shu: Color(0xFFC2352B),
+    kin: Color(0xFFE0B057),
+    sakura: Color(0xFFE3A2AB),
+    text: Color(0xFFF7EFE2),
+    muted: Color(0xFFA2907E),
+  ),
+];
+
+/// Couleurs actives.
+///
+/// Elles ne sont volontairement pas constantes : changer de thème réaffecte
+/// ces champs, et toute l'application suit au prochain rendu.
+class Palette {
+  static AppTheme current = appThemes.first;
+
+  static Color ink = current.ink;
+  static Color surface = current.surface;
+  static Color raised = current.raised;
+  static Color line = current.line;
+  static Color shu = current.shu;
+  static Color kin = current.kin;
+  static Color sakura = current.sakura;
+  static Color text = current.text;
+  static Color muted = current.muted;
+
+  static String get logo => current.logo;
+
+  static void apply(String id) {
+    current = appThemes.firstWhere(
+      (t) => t.id == id,
+      orElse: () => appThemes.first,
+    );
+    ink = current.ink;
+    surface = current.surface;
+    raised = current.raised;
+    line = current.line;
+    shu = current.shu;
+    kin = current.kin;
+    sakura = current.sakura;
+    text = current.text;
+    muted = current.muted;
+  }
+}
+
+/// Arrondis : deux valeurs seulement, pour que tout l'écran respire pareil.
 const double radiusSm = 4; // puces, badges, champs
-const double radiusMd = 8; // affiches, cartes, boites de dialogue
+const double radiusMd = 8; // affiches, cartes, boîtes de dialogue
 
 /// Decoration commune des champs de saisie.
 /// Definie ici plutot que dans le theme : l'API du theme change souvent
@@ -37,7 +155,7 @@ InputDecoration fieldDecoration({
 }) {
   final border = OutlineInputBorder(
     borderRadius: BorderRadius.circular(radiusSm),
-    borderSide: const BorderSide(color: Palette.line),
+    borderSide: BorderSide(color: Palette.line),
   );
   return InputDecoration(
     hintText: hintText,
@@ -46,8 +164,8 @@ InputDecoration fieldDecoration({
     suffixIcon: suffixIcon,
     filled: true,
     fillColor: Palette.surface,
-    hintStyle: const TextStyle(color: Palette.muted, fontSize: 12.5),
-    labelStyle: const TextStyle(color: Palette.muted, fontSize: 13),
+    hintStyle: TextStyle(color: Palette.muted, fontSize: 12.5),
+    labelStyle: TextStyle(color: Palette.muted, fontSize: 13),
     border: border,
     enabledBorder: border,
     focusedBorder: border,
@@ -65,7 +183,7 @@ AppBar darkAppBar({required Widget title, List<Widget>? actions}) {
     foregroundColor: Palette.text,
     elevation: 0,
     centerTitle: false,
-    titleTextStyle: const TextStyle(
+    titleTextStyle: TextStyle(
       color: Palette.text,
       fontSize: 20,
       fontWeight: FontWeight.w600,
@@ -93,11 +211,20 @@ class AnimeOrganizerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Le contrôleur notifie le changement de thème : l'arbre entier
+    // se reconstruit avec les nouvelles couleurs.
+    return AnimatedBuilder(
+      animation: library,
+      builder: (context, _) => _buildApp(),
+    );
+  }
+
+  Widget _buildApp() {
     final base = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: Palette.ink,
-      colorScheme: const ColorScheme.dark(
+      colorScheme: ColorScheme.dark(
         primary: Palette.shu,
         secondary: Palette.kin,
         surface: Palette.surface,
@@ -110,12 +237,12 @@ class AnimeOrganizerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: base.copyWith(
         bottomSheetTheme:
-            const BottomSheetThemeData(backgroundColor: Palette.surface),
+            BottomSheetThemeData(backgroundColor: Palette.surface),
         textTheme: base.textTheme.apply(
           bodyColor: Palette.text,
           displayColor: Palette.text,
         ),
-        snackBarTheme: const SnackBarThemeData(
+        snackBarTheme: SnackBarThemeData(
           backgroundColor: Palette.raised,
           contentTextStyle: TextStyle(color: Palette.text),
         ),

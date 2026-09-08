@@ -175,10 +175,10 @@ class _AiSearchScreenState extends State<AiSearchScreen> {
                   onSubmitted: _run,
                   decoration: fieldDecoration(
                     hintText: 'Décris ce que tu cherches',
-                    prefixIcon: const Icon(Icons.auto_awesome,
+                    prefixIcon: Icon(Icons.auto_awesome,
                         color: Palette.muted, size: 20),
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.send, color: Palette.shu, size: 20),
+                      icon: Icon(Icons.send, color: Palette.shu, size: 20),
                       onPressed: () => _run(_controller.text),
                     ),
                   ),
@@ -203,7 +203,7 @@ class _AiSearchScreenState extends State<AiSearchScreen> {
                           borderRadius: BorderRadius.circular(radiusSm),
                         ),
                         child: Text(_presets[i][0],
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12.5, color: Palette.muted)),
                       ),
                     ),
@@ -213,7 +213,7 @@ class _AiSearchScreenState extends State<AiSearchScreen> {
             ),
           ),
           if (_busy)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: LinearProgressIndicator(
                   minHeight: 3,
@@ -224,7 +224,7 @@ class _AiSearchScreenState extends State<AiSearchScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
               child: Text(_message!,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Palette.muted, fontSize: 12, height: 1.4)),
             ),
           Expanded(
@@ -241,7 +241,7 @@ class _AiSearchScreenState extends State<AiSearchScreen> {
                                 'sans accès au web, le modèle ignore ce qui est '
                                 'sorti après son entraînement.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: Palette.muted, height: 1.5, fontSize: 13),
                       ),
                     ),
@@ -300,17 +300,17 @@ class _AiSearchScreenState extends State<AiSearchScreen> {
                     if (meta.episodes != null) '${meta.episodes} ép.',
                   ].join(' · '),
                   style:
-                      const TextStyle(color: Palette.muted, fontSize: 11.5),
+                      TextStyle(color: Palette.muted, fontSize: 11.5),
                 ),
                 if (found.reason.isNotEmpty) ...[
                   const SizedBox(height: 5),
                   Text(found.reason,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: Palette.kin, fontSize: 12, height: 1.35)),
                 ],
                 if (local != null) ...[
                   const SizedBox(height: 4),
-                  const Text('Déjà dans ta bibliothèque',
+                  Text('Déjà dans ta bibliothèque',
                       style: TextStyle(color: Palette.sakura, fontSize: 11)),
                 ],
               ],

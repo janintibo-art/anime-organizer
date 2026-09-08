@@ -575,7 +575,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           borderRadius: BorderRadius.circular(radiusSm),
                         ),
                         child: Text(_notice!,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: Palette.text, fontSize: 12.5)),
                       ),
                     ),
@@ -740,7 +740,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  const Text(
+                  Text(
                     'Raccourcis clavier : espace pause, flèches déplacement et volume, '
                     'S passer l\'intro, N et P changer d\'épisode, Échap quitter.',
                     style: TextStyle(
@@ -758,7 +758,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Widget _optionTitle(String label) => Padding(
         padding: const EdgeInsets.only(top: 6, bottom: 8),
         child: Text(label,
-            style: const TextStyle(
+            style: TextStyle(
                 color: Palette.muted, fontSize: 12, letterSpacing: 0.5)),
       );
 
@@ -817,7 +817,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           shrinkWrap: true,
           padding: const EdgeInsets.symmetric(vertical: 12),
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Text('Audio',
                   style: TextStyle(color: Palette.muted, fontSize: 12)),
@@ -828,14 +828,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 title: Text(_trackLabel(t, 'Piste ${t.id}'),
                     style: const TextStyle(fontSize: 13.5)),
                 trailing: _player.state.track.audio.id == t.id
-                    ? const Icon(Icons.check, color: Palette.shu, size: 18)
+                    ? Icon(Icons.check, color: Palette.shu, size: 18)
                     : null,
                 onTap: () {
                   _player.setAudioTrack(t);
                   Navigator.pop(ctx);
                 },
               ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Text('Sous-titres',
                   style: TextStyle(color: Palette.muted, fontSize: 12)),
@@ -847,7 +847,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     t.id == 'no' ? 'Aucun' : _trackLabel(t, 'Piste ${t.id}'),
                     style: const TextStyle(fontSize: 13.5)),
                 trailing: _player.state.track.subtitle.id == t.id
-                    ? const Icon(Icons.check, color: Palette.shu, size: 18)
+                    ? Icon(Icons.check, color: Palette.shu, size: 18)
                     : null,
                 onTap: () {
                   _player.setSubtitleTrack(t);
