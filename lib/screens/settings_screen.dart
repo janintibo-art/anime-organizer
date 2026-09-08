@@ -312,7 +312,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _field(
                       controller: _aiModel,
                       label: 'Modèle',
-                      hint: 'openai/gpt-oss-20b',
+                      hint: 'llama-3.3-70b-versatile',
                       onSubmit: (v) =>
                           library.updateSettings((s) => s.aiModel = v),
                     )
@@ -352,6 +352,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           backgroundColor: Palette.raised,
                           color: Palette.shu),
                     ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Conseil : les modèles « gpt-oss » réfléchissent avant de répondre '
+                      'et consomment beaucoup de jetons. « llama-3.3-70b-versatile » '
+                      'répond directement et convient mieux ici.',
+                      style: TextStyle(
+                          color: Palette.muted, fontSize: 11.5, height: 1.4),
+                    ),
+                  ),
                   if (_aiMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),

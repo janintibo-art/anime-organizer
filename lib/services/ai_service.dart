@@ -7,6 +7,9 @@ import 'package:http/http.dart' as http;
 /// données ne reconnaissent pas le nom du dossier, et à donner le titre
 /// dans les trois écritures : romaji, anglais, français.
 class AiService {
+  /// Dernier échec, affiché dans les réglages pour ne pas rester aveugle.
+  static String? lastError;
+
   static String baseUrl(String provider, String custom) {
     switch (provider) {
       case 'groq':
@@ -50,7 +53,12 @@ class AiService {
     }
   }
 
-  /// Envoie une question et renvoie la réponse brute, ou null en cas d'échec.
+  /// Envoie une question et renvoie la réponse, ou null en cas d'échec.
+  ///
+  /// Deux pièges avec les modèles à raisonnement du type gpt-oss : ils
+  /// consomment leur budget de jetons dans un champ « reasoning » séparé et
+  /// renvoient un « content » vide. On leur laisse donc de la marge, on leur
+  /// demande un raisonnement court, et on lit les deux champs.
   static Future<String?> ask({
     required String provider,
     required String apiKey,
@@ -58,31 +66,66 @@ class AiService {
     required String system,
     required String user,
     String custom = '',
-    int maxTokens = 400,
+    int maxTokens = 1200,
   }) async {
-    if (apiKey.trim().isEmpty || model.trim().isEmpty) return null;
+    lastError = null;
+    if (apiKey.trim().isEmpty) {
+      lastError = 'Aucune clé renseignée.';
+      return null;
+    }
+    if (model.trim().isEmpty) {
+      lastError = 'Aucun modèle choisi.';
+      return null;
+    }
+
+    final payload = <String, dynamic>{
+      'model': model,
+      'temperature': 0.2,
+      'max_tokens': maxTokens,
+      'messages': [
+        {'role': 'system', 'content': system},
+        {'role': 'user', 'content': user},
+      ],
+      if (model.toLowerCase().contains('gpt-oss')) 'reasoning_effort': 'low',
+    };
+
     try {
       final res = await http
           .post(
             Uri.parse('${baseUrl(provider, custom)}/chat/completions'),
             headers: _headers(apiKey),
-            body: jsonEncode({
-              'model': model,
-              'temperature': 0.2,
-              'max_tokens': maxTokens,
-              'messages': [
-                {'role': 'system', 'content': system},
-                {'role': 'user', 'content': user},
-              ],
-            }),
+            body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 45));
-      if (res.statusCode != 200) return null;
+          .timeout(const Duration(seconds: 60));
+
+      if (res.statusCode != 200) {
+        lastError = 'HTTP ${res.statusCode} — ${res.body}';
+        return null;
+      }
+
       final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final choices = body['choices'] as List? ?? const [];
-      if (choices.isEmpty) return null;
-      return ((choices.first as Map)['message'] as Map?)?['content']?.toString();
-    } catch (_) {
+      if (choices.isEmpty) {
+        lastError = 'Réponse sans contenu.';
+        return null;
+      }
+
+      final choice = choices.first as Map;
+      final message = choice['message'] as Map?;
+      final content = message?['content']?.toString().trim();
+      if (content != null && content.isNotEmpty) return content;
+
+      // Le contenu est vide : on tente le champ de raisonnement.
+      final reasoning = message?['reasoning']?.toString().trim();
+      if (reasoning != null && reasoning.isNotEmpty) return reasoning;
+
+      final reason = choice['finish_reason']?.toString() ?? 'inconnue';
+      lastError = 'Le modèle a répondu sans texte (raison : $reason). '
+          'Augmente le budget de jetons ou choisis un modèle sans raisonnement, '
+          'par exemple llama-3.3-70b-versatile.';
+      return null;
+    } catch (e) {
+      lastError = e.toString();
       return null;
     }
   }
@@ -101,14 +144,15 @@ class AiService {
       apiKey: apiKey,
       model: model,
       custom: custom,
-      system: 'Réponds par un seul mot.',
+      system: 'Réponds par un seul mot, sans explication.',
       user: 'Dis simplement : ok',
-      maxTokens: 10,
+      maxTokens: 800,
     );
     if (answer == null) {
-      return 'Pas de réponse. Vérifie la clé, le modèle et la connexion.';
+      return 'Échec — ${lastError ?? 'pas de réponse'}';
     }
-    return 'Connexion réussie — réponse : ${answer.trim()}';
+    final short = answer.length > 120 ? '${answer.substring(0, 120)}…' : answer;
+    return 'Connexion réussie — réponse : $short';
   }
 
   /// Identifie une série à partir d'un nom de dossier.
@@ -143,9 +187,16 @@ class AiService {
       custom: custom,
       system: system,
       user: user,
+      maxTokens: 1500,
     );
     if (answer == null) return null;
-    return AiTitles.parse(answer);
+    final parsed = AiTitles.parse(answer);
+    if (parsed == null) {
+      final short =
+          answer.length > 200 ? '${answer.substring(0, 200)}…' : answer;
+      lastError = 'Réponse illisible : $short';
+    }
+    return parsed;
   }
 }
 

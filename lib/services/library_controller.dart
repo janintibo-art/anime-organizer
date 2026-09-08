@@ -37,7 +37,7 @@ class AppSettings {
   bool aiEnabled = true;
   String aiProvider = 'groq'; // groq | openrouter | custom
   String aiKey = '';
-  String aiModel = 'openai/gpt-oss-20b';
+  String aiModel = 'llama-3.3-70b-versatile';
   String aiEndpoint = '';
   String metaSource = 'auto'; // auto | anilist | jikan
   String viewMode = 'grid'; // grid | list | genre
@@ -85,7 +85,7 @@ class AppSettings {
     s.aiEnabled = j['aiEnabled'] as bool? ?? true;
     s.aiProvider = j['aiProvider'] as String? ?? 'groq';
     s.aiKey = j['aiKey'] as String? ?? '';
-    s.aiModel = j['aiModel'] as String? ?? 'openai/gpt-oss-20b';
+    s.aiModel = j['aiModel'] as String? ?? 'llama-3.3-70b-versatile';
     s.aiEndpoint = j['aiEndpoint'] as String? ?? '';
     s.metaSource = j['metaSource'] as String? ?? 'auto';
     s.viewMode = j['viewMode'] as String? ?? 'grid';
@@ -596,7 +596,9 @@ class LibraryController extends ChangeNotifier {
       model: settings.aiModel,
       custom: settings.aiEndpoint,
     );
-    if (ai == null) return 'L\'IA n\'a pas répondu.';
+    if (ai == null) {
+      return AiService.lastError ?? 'L\'IA n\'a pas répondu.';
+    }
     if (!ai.usable) return 'L\'IA n\'a pas reconnu cette série.';
 
     if (ai.french.isNotEmpty) anime.frenchTitle = ai.french;
