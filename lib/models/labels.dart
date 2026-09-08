@@ -118,7 +118,6 @@ class Labels {
     'idol': 'Idoles',
     'video games': 'Jeux vidéo',
     'mythology': 'Mythologie',
-    'post-apocalyptic': 'Post-apocalyptique',
     'female protagonist': 'Héroïne',
     'male protagonist': 'Héros',
     'ensemble cast': 'Distribution chorale',
