@@ -12,6 +12,7 @@ import '../services/kitsu_api.dart';
 import '../services/tmdb_api.dart';
 import '../services/library_controller.dart';
 import '../services/metadata_service.dart';
+import 'ai_search_screen.dart';
 import 'discover_detail_screen.dart';
 
 /// Onglet Découvrir : le catalogue AniList, filtrable, avec chargement au fil
@@ -702,6 +703,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     setState(() => _seasonOnly = !_seasonOnly);
                     _reload();
                   },
+                ),
+                const SizedBox(width: 8),
+                _chip(
+                  label: 'Recherche IA',
+                  selected: false,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AiSearchScreen()),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 _chip(

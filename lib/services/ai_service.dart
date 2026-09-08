@@ -10,6 +10,21 @@ class AiService {
   /// Dernier échec, affiché dans les réglages pour ne pas rester aveugle.
   static String? lastError;
 
+  /// Outils réellement utilisés lors de la dernière requête, quand le
+  /// système en expose la trace : « web_search », « visit_website »…
+  static List<String> lastTools = [];
+
+  /// Systèmes Groq capables d'aller chercher l'information en ligne.
+  static const List<String> webCapableModels = [
+    'groq/compound',
+    'groq/compound-mini',
+  ];
+
+  static bool supportsWeb(String model) {
+    final m = model.toLowerCase();
+    return m.contains('compound') || m.endsWith(':online');
+  }
+
   static String baseUrl(String provider, String custom) {
     switch (provider) {
       case 'groq':
@@ -67,8 +82,10 @@ class AiService {
     required String user,
     String custom = '',
     int maxTokens = 1200,
+    bool webSearch = false,
   }) async {
     lastError = null;
+    lastTools = [];
     if (apiKey.trim().isEmpty) {
       lastError = 'Aucune clé renseignée.';
       return null;
@@ -78,8 +95,17 @@ class AiService {
       return null;
     }
 
+    // OpenRouter active la recherche web par un suffixe sur le modèle,
+    // Groq par un paramètre dédié : les deux voies sont gérées ici.
+    var effectiveModel = model;
+    if (webSearch &&
+        provider == 'openrouter' &&
+        !model.toLowerCase().endsWith(':online')) {
+      effectiveModel = '$model:online';
+    }
+
     final payload = <String, dynamic>{
-      'model': model,
+      'model': effectiveModel,
       'temperature': 0.2,
       'max_tokens': maxTokens,
       'messages': [
@@ -87,6 +113,12 @@ class AiService {
         {'role': 'user', 'content': user},
       ],
       if (model.toLowerCase().contains('gpt-oss')) 'reasoning_effort': 'low',
+      if (webSearch && model.toLowerCase().contains('compound'))
+        'compound_custom': {
+          'tools': {
+            'enabled_tools': ['web_search', 'visit_website'],
+          },
+        },
     };
 
     try {
@@ -112,6 +144,14 @@ class AiService {
 
       final choice = choices.first as Map;
       final message = choice['message'] as Map?;
+
+      // Trace des outils : utile pour savoir si la réponse vient du web.
+      final executed = message?['executed_tools'] as List? ?? const [];
+      lastTools = executed
+          .map((t) => (t as Map)['type']?.toString() ?? '')
+          .where((t) => t.isNotEmpty)
+          .toList();
+
       final content = message?['content']?.toString().trim();
       if (content != null && content.isNotEmpty) return content;
 
@@ -153,6 +193,78 @@ class AiService {
     }
     final short = answer.length > 120 ? '${answer.substring(0, 120)}…' : answer;
     return 'Connexion réussie — réponse : $short';
+  }
+
+  /// Propose des séries à partir d'une demande en français.
+  ///
+  /// Le modèle ne consulte pas Internet : ses titres sont ensuite vérifiés
+  /// contre l'index local avant d'être affichés. Ce qu'il invente disparaît.
+  static Future<List<AiSuggestion>> suggest({
+    required String request,
+    required String provider,
+    required String apiKey,
+    required String model,
+    String custom = '',
+    List<String> ownedTitles = const [],
+    List<String> candidates = const [],
+    int count = 12,
+    bool webSearch = false,
+  }) async {
+    const system =
+        'Tu conseilles des séries d\'animation japonaise. Si tu disposes '
+        'd\'une recherche web, utilise-la pour vérifier les dates de sortie. '
+        'Tu réponds '
+        'uniquement par un tableau JSON, sans texte autour ni balises de code. '
+        'Chaque élément : {"title":"titre en romaji","reason":"une phrase "'
+        '"courte en français"}. Utilise le titre romaji officiel, celui que '
+        'les bases de données référencent.';
+
+    final buffer = StringBuffer('Demande : $request\n');
+
+    if (ownedTitles.isNotEmpty) {
+      final sample = ownedTitles.take(40).join(', ');
+      buffer.write('\nSéries déjà possédées, à ne pas reproposer : $sample\n');
+    }
+
+    if (candidates.isNotEmpty) {
+      buffer.write('\nChoisis uniquement dans cette liste réelle, sans rien '
+          'ajouter :\n${candidates.take(60).join('\n')}\n');
+    }
+
+    buffer.write('\nRenvoie au plus $count éléments.');
+
+    final answer = await ask(
+      provider: provider,
+      apiKey: apiKey,
+      model: model,
+      custom: custom,
+      system: system,
+      user: buffer.toString(),
+      maxTokens: 2000,
+      webSearch: webSearch,
+    );
+    if (answer == null) return const [];
+
+    try {
+      final start = answer.indexOf('[');
+      final end = answer.lastIndexOf(']');
+      if (start < 0 || end <= start) {
+        lastError = 'Réponse illisible.';
+        return const [];
+      }
+      final list = jsonDecode(answer.substring(start, end + 1)) as List;
+      final out = <AiSuggestion>[];
+      for (final item in list) {
+        if (item is! Map) continue;
+        final title = item['title']?.toString().trim() ?? '';
+        if (title.isEmpty) continue;
+        out.add(AiSuggestion(title, item['reason']?.toString().trim() ?? ''));
+      }
+      return out;
+    } catch (e) {
+      lastError = e.toString();
+      return const [];
+    }
   }
 
   /// Identifie une série à partir d'un nom de dossier.
@@ -198,6 +310,13 @@ class AiService {
     }
     return parsed;
   }
+}
+
+/// Une proposition de l'IA : un titre, et la raison de la proposition.
+class AiSuggestion {
+  final String title;
+  final String reason;
+  const AiSuggestion(this.title, this.reason);
 }
 
 class AiTitles {

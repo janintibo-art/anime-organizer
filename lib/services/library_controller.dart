@@ -51,6 +51,7 @@ class AppSettings {
   String aiKey = '';
   String aiModel = 'llama-3.3-70b-versatile';
   String aiEndpoint = '';
+  bool aiWebSearch = true;
   // auto | anilist | jikan | kitsu | animethemes | tmdb
   String metaSource = 'auto';
   String tmdbKey = '';
@@ -85,6 +86,7 @@ class AppSettings {
         'aiKey': aiKey,
         'aiModel': aiModel,
         'aiEndpoint': aiEndpoint,
+        'aiWebSearch': aiWebSearch,
         'metaSource': metaSource,
         'tmdbKey': tmdbKey,
         'viewMode': viewMode,
@@ -120,6 +122,7 @@ class AppSettings {
     s.aiKey = j['aiKey'] as String? ?? '';
     s.aiModel = j['aiModel'] as String? ?? 'llama-3.3-70b-versatile';
     s.aiEndpoint = j['aiEndpoint'] as String? ?? '';
+    s.aiWebSearch = j['aiWebSearch'] as bool? ?? true;
     s.metaSource = j['metaSource'] as String? ?? 'auto';
     s.tmdbKey = j['tmdbKey'] as String? ?? '';
     s.viewMode = j['viewMode'] as String? ?? 'grid';
