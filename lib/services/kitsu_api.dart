@@ -35,7 +35,7 @@ class KitsuApi {
     if (title.trim().isEmpty) return const [];
     final body = await _get('anime', {
       'filter[text]': title.trim(),
-      'page[limit]': '$limit',
+      'page[limit]': '${limit.clamp(1, 20)}',
       'include': 'categories',
     });
     return _parse(body);
@@ -49,6 +49,8 @@ class KitsuApi {
     'FAVOURITES_DESC': '-favoritesCount',
   };
 
+  /// Kitsu refuse toute page de plus de 20 elements : on borne au lieu de
+  /// laisser la requete partir en erreur.
   static Future<List<AnimeMeta>> browse({
     int page = 1,
     int perPage = 20,
@@ -56,9 +58,10 @@ class KitsuApi {
     String? genre,
     String? format,
   }) async {
+    final limit = perPage.clamp(1, 20);
     final params = <String, String>{
-      'page[limit]': '$perPage',
-      'page[offset]': '${(page - 1) * perPage}',
+      'page[limit]': '$limit',
+      'page[offset]': '${(page - 1) * limit}',
       'sort': _sortFields[sort] ?? '-userCount',
       'include': 'categories',
       if (format != null && format.isNotEmpty)
@@ -72,14 +75,27 @@ class KitsuApi {
 
   static List<AnimeMeta> _parse(Map<String, dynamic>? body) {
     if (body == null) return const [];
+
+    // Kitsu suit la norme JSON:API : les genres ne sont pas dans la fiche
+    // mais dans une section « included », reliee par identifiant.
+    final categories = <String, String>{};
+    for (final entry in body['included'] as List? ?? const []) {
+      final map = entry as Map;
+      if (map['type'] != 'categories') continue;
+      final title = (map['attributes'] as Map?)?['title']?.toString();
+      final id = map['id']?.toString();
+      if (title != null && id != null) categories[id] = title;
+    }
+
     final data = body['data'] as List? ?? const [];
     return data
-        .map((e) => _map(Map<String, dynamic>.from(e as Map)))
+        .map((e) => _map(Map<String, dynamic>.from(e as Map), categories))
         .whereType<AnimeMeta>()
         .toList();
   }
 
-  static AnimeMeta? _map(Map<String, dynamic> item) {
+  static AnimeMeta? _map(
+      Map<String, dynamic> item, Map<String, String> categories) {
     final attrs = item['attributes'] as Map<String, dynamic>?;
     if (attrs == null) return null;
 
@@ -91,6 +107,16 @@ class KitsuApi {
         ? english
         : (romaji ?? attrs['canonicalTitle']?.toString());
     if (name == null || name.trim().isEmpty) return null;
+
+    final genres = <String>[];
+    final linked = ((item['relationships'] as Map?)?['categories']
+        as Map?)?['data'] as List?;
+    for (final ref in linked ?? const []) {
+      final name = categories[(ref as Map)['id']?.toString()];
+      if (name != null && name != 'Hentai' && !genres.contains(name)) {
+        genres.add(name);
+      }
+    }
 
     final poster = attrs['posterImage'] as Map<String, dynamic>?;
     final rating = double.tryParse(attrs['averageRating']?.toString() ?? '');
@@ -105,6 +131,7 @@ class KitsuApi {
       imageUrl: (poster?['large'] ?? poster?['medium'] ?? poster?['original'])
           as String?,
       synopsis: attrs['synopsis']?.toString(),
+      genres: genres,
       score: rating == null ? null : rating / 10.0,
       popularity: attrs['userCount'] as int?,
       year: start == null || start.length < 4

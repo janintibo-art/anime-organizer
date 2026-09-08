@@ -20,6 +20,17 @@ class AniListApi {
   /// Derniere erreur rencontree, pour le diagnostic des reglages.
   static String? lastError;
 
+  /// Quand AniList repond 403, elle est coupee cote serveur. On evite de la
+  /// solliciter en boucle : chaque appel couterait une seconde pour rien.
+  static DateTime? _pausedUntil;
+
+  static bool get isPaused =>
+      _pausedUntil != null && DateTime.now().isBefore(_pausedUntil!);
+
+  static void _pause() {
+    _pausedUntil = DateTime.now().add(const Duration(minutes: 30));
+  }
+
   static const String _url = 'https://graphql.anilist.co';
   static DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
   static const Duration _minGap = Duration(milliseconds: 700);
@@ -95,6 +106,8 @@ query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$format:MediaFormat
   }
 }''';
 
+    if (isPaused) return const BrowsePage([], false);
+
     final variables = <String, dynamic>{
       'page': page,
       'perPage': perPage,
@@ -127,6 +140,7 @@ query($page:Int,$perPage:Int,$sort:[MediaSort],$genre:String,$format:MediaFormat
         }
         if (res.statusCode != 200) {
           lastError = 'HTTP ${res.statusCode} : ${res.body}';
+          if (res.statusCode == 403) _pause();
           return const BrowsePage([], false);
         }
 
@@ -203,7 +217,7 @@ query($id:Int){
 
   static Future<List<AnimeMeta>> searchMany(String title, {int limit = 8}) async {
     final query = title.trim();
-    if (query.isEmpty) return const [];
+    if (query.isEmpty || isPaused) return const [];
 
     for (var attempt = 0; attempt < 3; attempt++) {
       await _throttle();
@@ -229,6 +243,7 @@ query($id:Int){
         }
         if (res.statusCode != 200) {
           lastError = 'HTTP ${res.statusCode}';
+          if (res.statusCode == 403) _pause();
           return const [];
         }
 

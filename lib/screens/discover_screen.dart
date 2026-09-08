@@ -117,7 +117,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       } else {
         final third = await KitsuApi.browse(
           page: _page,
-          perPage: 24,
+          perPage: 20,
           sort: _sort,
           genre: _genre.isEmpty ? null : _genre,
           format: _format.isEmpty ? null : _format,
@@ -143,10 +143,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       _page++;
       _loading = false;
       if (_items.isEmpty && !hasNext) {
-        final reason = AniListApi.lastError;
-        _error = reason == null
+        final details = [
+          if (AniListApi.lastError != null) 'AniList : ${AniListApi.lastError}',
+          if (JikanApi.lastError != null)
+            'MyAnimeList : ${JikanApi.lastError}',
+          if (KitsuApi.lastError != null) 'Kitsu : ${KitsuApi.lastError}',
+        ].join('\n\n');
+
+        _error = details.isEmpty
             ? 'Aucun résultat. Change de filtre ou réessaie plus tard.'
-            : 'Le catalogue est injoignable.\n\n$reason\n\n'
+            : 'Les trois catalogues sont muets.\n\n$details\n\n'
                 'Lance « Tester la connexion » dans les réglages.';
       }
     });
@@ -181,7 +187,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 const Padding(
                   padding: EdgeInsets.only(left: 11, top: 1),
                   child: Text(
-                    'Catalogue AniList',
+                    'AniList · MyAnimeList · Kitsu',
                     style: TextStyle(
                         color: Palette.muted,
                         fontSize: 10.5,
