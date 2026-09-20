@@ -670,10 +670,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 32,
-            child: ListView(
+          SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 _menu<String>(
                   label: _wishlistOnly
