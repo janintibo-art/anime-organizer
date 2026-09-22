@@ -38,6 +38,12 @@ class AppSettings {
   int skipIntroSeconds = 85;
   int seekStepSeconds = 10;
   double subtitleSize = 32;
+  // Apparence des sous-titres : couleur ARGB, style de lisibilité
+  // (shadow | outline | box | solid), gras, et marge au-dessus du bas.
+  int subtitleColor = 0xFFFFFFFF;
+  String subtitleStyle = 'shadow';
+  bool subtitleBold = false;
+  double subtitleBottom = 24;
   String videoFit = 'contain'; // contain | cover | fill
   bool hardwareDecoding = true;
   String preferredAudio = '';
@@ -77,6 +83,10 @@ class AppSettings {
         'skipIntroSeconds': skipIntroSeconds,
         'seekStepSeconds': seekStepSeconds,
         'subtitleSize': subtitleSize,
+        'subtitleColor': subtitleColor,
+        'subtitleStyle': subtitleStyle,
+        'subtitleBold': subtitleBold,
+        'subtitleBottom': subtitleBottom,
         'videoFit': videoFit,
         'hardwareDecoding': hardwareDecoding,
         'preferredAudio': preferredAudio,
@@ -114,7 +124,16 @@ class AppSettings {
     s.autoNext = j['autoNext'] as bool? ?? true;
     s.skipIntroSeconds = j['skipIntroSeconds'] as int? ?? 85;
     s.seekStepSeconds = j['seekStepSeconds'] as int? ?? 10;
-    s.subtitleSize = (j['subtitleSize'] as num?)?.toDouble() ?? 32;
+    s.subtitleSize =
+        ((j['subtitleSize'] as num?)?.toDouble() ?? 32).clamp(14, 96).toDouble();
+    s.subtitleColor = j['subtitleColor'] as int? ?? 0xFFFFFFFF;
+    s.subtitleStyle = const {'shadow', 'outline', 'box', 'solid'}
+            .contains(j['subtitleStyle'])
+        ? j['subtitleStyle'] as String
+        : 'shadow';
+    s.subtitleBold = j['subtitleBold'] as bool? ?? false;
+    s.subtitleBottom =
+        ((j['subtitleBottom'] as num?)?.toDouble() ?? 24).clamp(0, 400).toDouble();
     s.videoFit = j['videoFit'] as String? ?? 'contain';
     s.hardwareDecoding = j['hardwareDecoding'] as bool? ?? true;
     s.preferredAudio = j['preferredAudio'] as String? ?? '';
@@ -581,6 +600,15 @@ class LibraryController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Retient si un épisode a une piste française, d'après ce que le
+  /// lecteur vient de lire. N'écrit que si l'information change.
+  Future<void> noteAudio(Anime anime, Episode episode, bool fr) async {
+    if (anime.audioFr[episode.path] == fr) return;
+    anime.noteAudio(episode.path, fr);
+    await save();
+    notifyListeners();
+  }
+
   /// Enregistre la position de lecture. Au-dela de 92 % l'episode est
   /// considere comme vu : le generique de fin ne merite pas d'etre subi.
   Future<void> savePlayback(
@@ -691,6 +719,7 @@ class LibraryController extends ChangeNotifier {
         for (final w in b.watchedPaths) {
           if (!current.watchedPaths.contains(w)) current.watchedPaths.add(w);
         }
+        b.audioFr.forEach(current.noteAudio);
         if ((b.lastPlayedAtMs ?? 0) > (current.lastPlayedAtMs ?? 0)) {
           current.lastPlayedAtMs = b.lastPlayedAtMs;
           current.lastEpisodePath = b.lastEpisodePath;
@@ -873,10 +902,23 @@ class LibraryController extends ChangeNotifier {
   }
 
   /// Liste filtree et triee pour l'ecran d'accueil.
-  List<Anime> view({String query = '', String genre = '', bool favoritesOnly = false}) {
-    final q = query.trim().toLowerCase();
+  List<Anime> view({
+    String query = '',
+    String genre = '',
+    bool favoritesOnly = false,
+    bool vfOnly = false,
+  }) {
+    var q = query.trim().toLowerCase();
+    // « vf » tapé dans la recherche, seul ou avec un titre (« naruto vf »),
+    // agit comme le filtre VF.
+    final motsVf = RegExp(r'(^|\s)(vf|version française|version francaise)(\s|$)');
+    if (motsVf.hasMatch(q)) {
+      vfOnly = true;
+      q = q.replaceAll(motsVf, ' ').trim();
+    }
     var list = animes.where((a) {
       if (favoritesOnly && !a.favorite) return false;
+      if (vfOnly && !a.hasVf) return false;
       if (genre.isNotEmpty && !a.genres.contains(genre)) return false;
       if (q.isEmpty) return true;
       return a.title.toLowerCase().contains(q) ||
@@ -915,9 +957,10 @@ class LibraryController extends ChangeNotifier {
   }
 
   /// Regroupement par genre pour l'affichage en rayons.
-  Map<String, List<Anime>> groupedByGenre({String query = ''}) {
+  Map<String, List<Anime>> groupedByGenre(
+      {String query = '', bool vfOnly = false}) {
     final map = <String, List<Anime>>{};
-    for (final a in view(query: query)) {
+    for (final a in view(query: query, vfOnly: vfOnly)) {
       if (a.genres.isEmpty) {
         map.putIfAbsent('Sans genre', () => []).add(a);
       }

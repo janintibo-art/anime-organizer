@@ -122,6 +122,33 @@ class _AnimeCardState extends State<AnimeCard> {
                           ),
                         ),
                       ),
+                      // VF : plein si toute la série l'a, en contour si une
+                      // partie des épisodes seulement.
+                      if (anime.hasVf)
+                        Positioned(
+                          right: 8,
+                          bottom: anime.progress > 0 ? 11 : 5,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: anime.fullyVf
+                                  ? Palette.kin
+                                  : Palette.ink.withAlpha(200),
+                              border: Border.all(color: Palette.kin),
+                              borderRadius: BorderRadius.circular(radiusSm),
+                            ),
+                            child: Text(
+                              'VF',
+                              style: TextStyle(
+                                color: anime.fullyVf ? Palette.ink : Palette.kin,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                        ),
                       if (anime.progress > 0)
                         Positioned(
                           left: 0,
@@ -211,6 +238,10 @@ class AnimeRow extends StatelessWidget {
                       if (anime.year != null) '${anime.year}',
                       if (anime.genres.isNotEmpty) anime.genres.first,
                       '${anime.episodes.length} épisodes',
+                      if (anime.fullyVf)
+                        'VF'
+                      else if (anime.hasVf)
+                        'VF ${anime.vfCount}/${anime.episodes.where((e) => !e.bonus).length}',
                     ].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
