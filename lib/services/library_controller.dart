@@ -127,6 +127,9 @@ class AppSettings {
     s.aiProvider = j['aiProvider'] as String? ?? 'groq';
     s.aiKey = j['aiKey'] as String? ?? '';
     s.aiModel = j['aiModel'] as String? ?? 'llama-3.3-70b-versatile';
+    // Un modèle retiré par son fournisseur fait échouer toutes les requêtes :
+    // on revient au modèle conseillé plutôt que de laisser l'IA muette.
+    if (AiService.isRetired(s.aiModel)) s.aiModel = AiService.defaultModel;
     s.aiEndpoint = j['aiEndpoint'] as String? ?? '';
     s.aiWebSearch = j['aiWebSearch'] as bool? ?? true;
     s.metaSource = j['metaSource'] as String? ?? 'auto';
@@ -437,15 +440,12 @@ class LibraryController extends ChangeNotifier {
         custom: settings.aiEndpoint,
       );
       if (ai != null && ai.usable) {
-        meta = await MetadataService.smartSearch(
-          ai.searchQuery,
-          source: settings.metaSource,
-          episodeCount: count,
-          tmdbKey: settings.tmdbKey,
-        );
-        if (meta == null && ai.english.isNotEmpty) {
+        // Chaque écriture du titre est essayée tour à tour : romaji, puis
+        // anglais, puis français.
+        for (final essai in {ai.searchQuery, ai.english, ai.french}) {
+          if (meta != null || essai.isEmpty) continue;
           meta = await MetadataService.smartSearch(
-            ai.english,
+            essai,
             source: settings.metaSource,
             episodeCount: count,
             tmdbKey: settings.tmdbKey,
@@ -726,8 +726,15 @@ class LibraryController extends ChangeNotifier {
     if (ai.japanese.isNotEmpty) anime.nativeTitle = ai.japanese;
     if (ai.romaji.isNotEmpty) anime.romajiTitle = ai.romaji;
 
-    final meta = await MetadataService.smartSearch(ai.searchQuery,
-        source: settings.metaSource, tmdbKey: settings.tmdbKey);
+    AnimeMeta? meta;
+    for (final essai in {ai.searchQuery, ai.english, ai.french}) {
+      if (meta != null || essai.isEmpty) continue;
+      meta = await MetadataService.smartSearch(
+        essai,
+        source: settings.metaSource,
+        tmdbKey: settings.tmdbKey,
+      );
+    }
     if (meta != null) {
       final french = anime.frenchTitle;
       final japanese = anime.nativeTitle;
