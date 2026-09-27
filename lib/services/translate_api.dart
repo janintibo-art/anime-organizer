@@ -13,6 +13,9 @@ class TranslateApi {
 
   static void clearCache() => _cache.clear();
 
+  /// Raison du dernier échec, en français, à montrer telle quelle.
+  static String? lastError;
+
   static Future<String?> translate(
     String text, {
     required String provider,
@@ -22,8 +25,13 @@ class TranslateApi {
     String? email,
     String sourceLang = 'en',
   }) async {
+    lastError = null;
     final input = text.trim();
-    if (input.isEmpty || provider == 'none') return null;
+    if (input.isEmpty) return null;
+    if (provider == 'none') {
+      lastError = 'Aucun fournisseur de traduction choisi dans les réglages.';
+      return null;
+    }
 
     final key = '$provider|$sourceLang|$targetLang|${input.hashCode}';
     final cached = _cache[key];
@@ -79,17 +87,37 @@ class TranslateApi {
       final uri = Uri.https('api.mymemory.translated.net', '/get', params);
       try {
         final res = await http.get(uri).timeout(const Duration(seconds: 20));
-        if (res.statusCode != 200) return null;
+        if (res.statusCode == 429 || res.statusCode == 403) {
+          lastError = _quotaMyMemory;
+          return null;
+        }
+        if (res.statusCode != 200) {
+          lastError = 'MyMemory a répondu HTTP ${res.statusCode}.';
+          return null;
+        }
         final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
         final translated =
             (body['responseData'] as Map?)?['translatedText']?.toString();
-        if (translated == null || translated.isEmpty) return null;
-        if (translated.toUpperCase().contains('QUERY LENGTH LIMIT') ||
-            translated.toUpperCase().contains('MYMEMORY WARNING')) {
+        final upper = (translated ?? '').toUpperCase();
+        // Quota épuisé : MyMemory répond 200 et glisse l'avertissement
+        // à la place de la traduction.
+        if (upper.contains('MYMEMORY WARNING') ||
+            upper.contains('FREE TRANSLATIONS') ||
+            '${body['responseStatus']}' == '429') {
+          lastError = _quotaMyMemory;
+          return null;
+        }
+        if (upper.contains('QUERY LENGTH LIMIT')) {
+          lastError = 'MyMemory refuse un passage trop long.';
+          return null;
+        }
+        if (translated == null || translated.isEmpty) {
+          lastError = 'MyMemory n\'a rien renvoyé.';
           return null;
         }
         out.write('$translated ');
       } catch (_) {
+        lastError = 'MyMemory injoignable : vérifie la connexion.';
         return null;
       }
       await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -97,6 +125,10 @@ class TranslateApi {
     final result = out.toString().trim();
     return result.isEmpty ? null : result;
   }
+
+  static const String _quotaMyMemory =
+      'Quota gratuit MyMemory épuisé pour aujourd\'hui (5 000 caractères, '
+      '50 000 avec ton e-mail dans les réglages).';
 
   static Future<String?> _libre(String text, String from, String to,
       String? endpoint, String? apiKey) async {
@@ -117,17 +149,26 @@ class TranslateApi {
             }),
           )
           .timeout(const Duration(seconds: 30));
-      if (res.statusCode != 200) return null;
+      if (res.statusCode != 200) {
+        lastError = res.statusCode == 403 || res.statusCode == 400
+            ? 'LibreTranslate refuse la demande : ce serveur exige une clé.'
+            : 'LibreTranslate a répondu HTTP ${res.statusCode}.';
+        return null;
+      }
       final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       return body['translatedText']?.toString();
     } catch (_) {
+      lastError = 'LibreTranslate injoignable : vérifie l\'adresse du serveur.';
       return null;
     }
   }
 
   static Future<String?> _deepl(
       String text, String from, String to, String? apiKey) async {
-    if (apiKey == null || apiKey.isEmpty) return null;
+    if (apiKey == null || apiKey.isEmpty) {
+      lastError = 'DeepL demande une clé, à saisir dans les réglages.';
+      return null;
+    }
     final host =
         apiKey.endsWith(':fx') ? 'api-free.deepl.com' : 'api.deepl.com';
     try {
@@ -145,12 +186,24 @@ class TranslateApi {
             },
           )
           .timeout(const Duration(seconds: 30));
-      if (res.statusCode != 200) return null;
+      if (res.statusCode == 456) {
+        lastError = 'Quota DeepL du mois épuisé.';
+        return null;
+      }
+      if (res.statusCode == 403) {
+        lastError = 'Clé DeepL refusée.';
+        return null;
+      }
+      if (res.statusCode != 200) {
+        lastError = 'DeepL a répondu HTTP ${res.statusCode}.';
+        return null;
+      }
       final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final list = body['translations'] as List? ?? const [];
       if (list.isEmpty) return null;
       return (list.first as Map)['text']?.toString();
     } catch (_) {
+      lastError = 'DeepL injoignable : vérifie la connexion.';
       return null;
     }
   }

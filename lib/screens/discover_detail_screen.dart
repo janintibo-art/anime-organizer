@@ -6,10 +6,9 @@ import '../models/anime_meta.dart';
 import '../models/labels.dart';
 import '../services/anilist_api.dart';
 import '../services/library_controller.dart';
-import '../services/translate_api.dart';
 import '../widgets/watch_links.dart';
 import 'detail_screen.dart';
-import 'discover_screen.dart';
+import 'genre_links.dart';
 
 /// Fiche d'une série du catalogue, avant de l'avoir sur le disque.
 class DiscoverDetailScreen extends StatefulWidget {
@@ -44,23 +43,21 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
     if (mounted) setState(() => _similar = list);
   }
 
-  Future<void> _translate() async {
+  Future<void> _translate({bool manual = false}) async {
     final source = meta.synopsis;
     if (source == null || source.isEmpty || _translating) return;
     setState(() => _translating = true);
-    final result = await TranslateApi.translate(
-      source,
-      provider: library.settings.translationProvider,
-      targetLang: library.settings.targetLang,
-      apiKey: library.settings.apiKey,
-      endpoint: library.settings.libreEndpoint,
-      email: library.settings.email,
-    );
+    final result = await library.translateText(source);
     if (!mounted) return;
     setState(() {
       _translated = result;
       _translating = false;
     });
+    if (manual && result == null && library.lastTranslateError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(library.lastTranslateError!)),
+      );
+    }
   }
 
   @override
@@ -73,7 +70,9 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
         final synopsis = _translated ?? meta.synopsis;
 
         return Scaffold(
-          body: CustomScrollView(
+          body: ScrollConfiguration(
+            behavior: const TextPageScrollBehavior(),
+            child: CustomScrollView(
             slivers: [
               _banner(),
               SliverToBoxAdapter(
@@ -135,7 +134,9 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                       if (_translated == null && meta.synopsis != null) ...[
                         const SizedBox(height: 10),
                         OutlinedButton.icon(
-                          onPressed: _translating ? null : _translate,
+                          onPressed: _translating
+                              ? null
+                              : () => _translate(manual: true),
                           icon: const Icon(Icons.translate, size: 18),
                           label: const Text('Traduire'),
                         ),
@@ -162,13 +163,16 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                         const SizedBox(height: 12),
                         SizedBox(
                           height: 196,
-                          child: ListView.separated(
+                          child: ScrollConfiguration(
+                            behavior: const AppScrollBehavior(),
+                            child: ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: _similar.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(width: 12),
                             itemBuilder: (context, i) =>
                                 _similarTile(_similar[i]),
+                          ),
                           ),
                         ),
                       ],
@@ -177,6 +181,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                 ),
               ),
             ],
+          ),
           ),
         );
       },
@@ -435,22 +440,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
   /// et une liste d'étiquettes toutes deux figées ; les autres sources
   /// (Kitsu, MyAnimeList…) ont des catégories libres qu'aucun filtre ne
   /// connaît, d'où le repli sur une recherche par ce mot.
-  void _openGenre(String raw) {
-    final isGenre = AniListApi.genreList
-        .any((g) => g.toLowerCase() == raw.toLowerCase());
-    final isTag = !isGenre &&
-        AniListApi.tagList.any((t) => t.toLowerCase() == raw.toLowerCase());
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => DiscoverScreen(
-          initialGenre: isGenre ? raw : null,
-          initialTag: isTag ? raw : null,
-          initialSearch: (isGenre || isTag) ? null : raw,
-        ),
-      ),
-    );
-  }
+  void _openGenre(String raw) => GenreLinks.open(context, raw);
 
   Widget _similarTile(AnimeMeta other) {
     return GestureDetector(

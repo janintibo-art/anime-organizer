@@ -159,7 +159,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     var items = result.items;
     var hasNext = result.hasNext;
     String? notice;
-    if (items.isEmpty) {
+    // Les sources de secours ignorent les étiquettes : elles rendraient
+    // une liste sans rapport avec celle qu'on a touchée.
+    if (items.isEmpty && _tag.isEmpty) {
       final backup = await JikanApi.browse(
         page: _page,
         sort: _sort,
@@ -228,7 +230,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           if (TmdbApi.lastError != null) 'TMDB : ${TmdbApi.lastError}',
         ].join('\n\n');
 
-        _error = details.isEmpty
+        _error = _tag.isNotEmpty
+            ? 'Aucun titre du catalogue AniList ne porte l\'étiquette '
+                '« ${Labels.genre(_tag)} ».'
+            : details.isEmpty
             ? 'Aucun résultat. Change de filtre ou réessaie plus tard.'
             : 'Les trois catalogues sont muets.\n\n$details\n\n'
                 'Lance « Tester la connexion » dans les réglages.';

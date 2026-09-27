@@ -492,7 +492,7 @@ class LibraryController extends ChangeNotifier {
         anime.posterPath = await PosterCache.ensure(anime.id, anime.imageUrl);
       }
       if (settings.autoTranslate && settings.translationProvider != 'none') {
-        await translateOne(anime, persist: false);
+        await translateOne(anime, persist: false, allowAi: false);
       }
     }
     if (persist) await save();
@@ -521,16 +521,65 @@ class LibraryController extends ChangeNotifier {
     anime.metaFailed = false;
   }
 
-  Future<bool> translateOne(Anime anime, {bool persist = true}) async {
+  /// Raison du dernier échec de [translateText], prête à afficher.
+  String? lastTranslateError;
+
+  /// Traduit un texte vers la langue choisie : le fournisseur des réglages
+  /// d'abord, puis l'IA s'il refuse (quota MyMemory épuisé, serveur muet).
+  Future<String?> translateText(String text, {bool allowAi = true}) async {
+    lastTranslateError = null;
+    if (text.trim().isEmpty) return null;
+
+    if (settings.translationProvider != 'none') {
+      final result = await TranslateApi.translate(
+        text,
+        provider: settings.translationProvider,
+        targetLang: settings.targetLang,
+        apiKey: settings.apiKey,
+        endpoint: settings.libreEndpoint,
+        email: settings.email,
+      );
+      if (result != null && result.trim().isNotEmpty) return result;
+    }
+    final reason = TranslateApi.lastError;
+
+    if (allowAi && settings.aiEnabled && settings.aiKey.trim().isNotEmpty) {
+      final lang = settings.targetLang.toLowerCase().startsWith('fr')
+          ? 'français'
+          : 'la langue de code « ${settings.targetLang} »';
+      final answer = await AiService.ask(
+        provider: settings.aiProvider,
+        apiKey: settings.aiKey,
+        model: settings.aiModel,
+        custom: settings.aiEndpoint,
+        system: 'Tu es traducteur. Tu traduis fidèlement en $lang le texte '
+            'reçu, sans rien ajouter ni résumer. Tu réponds uniquement par '
+            'la traduction, sans guillemets ni commentaire.',
+        user: text,
+        maxTokens: 2000,
+      );
+      final clean = answer?.trim();
+      if (clean != null && clean.isNotEmpty) return clean;
+      lastTranslateError = [
+        if (reason != null) reason,
+        'L\'IA n\'a pas pu prendre le relais${AiService.lastError == null ? '' : ' : ${AiService.lastError}'}',
+      ].join('\n');
+      return null;
+    }
+
+    lastTranslateError = reason == null
+        ? 'Traduction indisponible. Vérifie le fournisseur dans les réglages.'
+        : '$reason\nAstuce : avec une clé d\'IA dans les réglages, l\'IA '
+            'prend le relais quand le traducteur refuse.';
+    return null;
+  }
+
+  /// [allowAi] faux pour les traductions en série : elles videraient le
+  /// quota de l'IA, qui sert aussi à la recherche.
+  Future<bool> translateOne(Anime anime,
+      {bool persist = true, bool allowAi = true}) async {
     if (anime.synopsisEn == null || anime.synopsisEn!.trim().isEmpty) return false;
-    final result = await TranslateApi.translate(
-      anime.synopsisEn!,
-      provider: settings.translationProvider,
-      targetLang: settings.targetLang,
-      apiKey: settings.apiKey,
-      endpoint: settings.libreEndpoint,
-      email: settings.email,
-    );
+    final result = await translateText(anime.synopsisEn!, allowAi: allowAi);
     if (result != null && result.trim().isNotEmpty) {
       anime.synopsisTranslated = result;
       if (persist) await save();
@@ -553,7 +602,7 @@ class LibraryController extends ChangeNotifier {
     try {
       for (var i = 0; i < todo.length; i++) {
         _report('Traduction ${i + 1}/${todo.length}', (i + 1) / todo.length);
-        await translateOne(todo[i], persist: false);
+        await translateOne(todo[i], persist: false, allowAi: false);
       }
       await save();
     } finally {

@@ -7,6 +7,7 @@ import '../models/anime_meta.dart';
 import '../services/library_controller.dart';
 import '../services/metadata_service.dart';
 import '../widgets/poster_image.dart';
+import 'genre_links.dart';
 import 'player_screen.dart';
 
 class DetailScreen extends StatefulWidget {
@@ -42,9 +43,13 @@ class _DetailScreenState extends State<DetailScreen> {
       final ok = await library.translateOne(anime);
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'Traduction indisponible. Vérifie le fournisseur dans les réglages.')),
+          SnackBar(
+            duration: const Duration(seconds: 6),
+            content: Text(anime.synopsisEn == null
+                ? 'Pas de synopsis à traduire.'
+                : (library.lastTranslateError ??
+                    'Traduction indisponible. Vérifie le fournisseur dans les réglages.')),
+          ),
         );
       }
     }, 'La traduction a échoué.');
@@ -172,7 +177,7 @@ class _DetailScreenState extends State<DetailScreen> {
                             color: Palette.muted, fontSize: 11.5)),
                   ),
                   Expanded(
-                    child: Text(row[1],
+                    child: SelectableText(row[1],
                         style: const TextStyle(
                             fontSize: 13, height: 1.35)),
                   ),
@@ -280,7 +285,9 @@ class _DetailScreenState extends State<DetailScreen> {
         final seasons = _bySeason();
 
         return Scaffold(
-          body: CustomScrollView(
+          body: ScrollConfiguration(
+            behavior: const TextPageScrollBehavior(),
+            child: CustomScrollView(
             slivers: [
               _banner(),
               SliverToBoxAdapter(
@@ -307,7 +314,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       _titleVariants(),
                       _healthCard(),
                       const SizedBox(height: 18),
-                      Text(
+                      SelectableText(
                         synopsis == null || synopsis.isEmpty
                             ? 'Pas encore de synopsis. Utilise « Corriger la fiche » pour retrouver la série.'
                             : synopsis,
@@ -407,6 +414,7 @@ class _DetailScreenState extends State<DetailScreen> {
               ],
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
             ],
+          ),
           ),
         );
       },
@@ -631,17 +639,115 @@ class _DetailScreenState extends State<DetailScreen> {
       spacing: 8,
       runSpacing: 8,
       children: anime.genres
-          .map((g) => Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0x73D6B86A)),
+          .map((g) => Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _openGenre(g),
                   borderRadius: BorderRadius.circular(radiusSm),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0x73D6B86A)),
+                      borderRadius: BorderRadius.circular(radiusSm),
+                    ),
+                    child: Text(g,
+                        style: TextStyle(color: Palette.kin, fontSize: 12)),
+                  ),
                 ),
-                child: Text(g,
-                    style: TextStyle(color: Palette.kin, fontSize: 12)),
               ))
           .toList(),
+    );
+  }
+
+  /// Un genre touché : les autres séries de la bibliothèque qui le
+  /// portent, et un accès au catalogue filtré dessus.
+  void _openGenre(String genre) {
+    final others = library.animes
+        .where((o) => o.id != anime.id && o.genres.contains(genre))
+        .toList()
+      ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Palette.surface,
+      isScrollControlled: true,
+      builder: (sheet) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(sheet).size.height * 0.75),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+                child: Text(genre,
+                    style: TextStyle(
+                        color: Palette.kin,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                child: Text(
+                  others.isEmpty
+                      ? 'Aucune autre série de ta bibliothèque ne porte ce genre.'
+                      : '${others.length} autre(s) dans ta bibliothèque',
+                  style: TextStyle(color: Palette.muted, fontSize: 12.5),
+                ),
+              ),
+              if (others.isNotEmpty)
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: others.length,
+                    itemBuilder: (_, i) {
+                      final o = others[i];
+                      return ListTile(
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 20),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(radiusSm),
+                          child: SizedBox(
+                            width: 38,
+                            height: 54,
+                            child: PosterImage(anime: o, iconSize: 18),
+                          ),
+                        ),
+                        title: Text(o.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14)),
+                        subtitle: o.year == null
+                            ? null
+                            : Text('${o.year}',
+                                style: TextStyle(
+                                    color: Palette.muted, fontSize: 12)),
+                        onTap: () {
+                          Navigator.of(sheet).pop();
+                          Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => DetailScreen(anime: o)));
+                        },
+                      );
+                    },
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.travel_explore, size: 18),
+                  label: const Text('Voir ce genre dans le catalogue'),
+                  onPressed: () {
+                    Navigator.of(sheet).pop();
+                    GenreLinks.open(context, genre);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

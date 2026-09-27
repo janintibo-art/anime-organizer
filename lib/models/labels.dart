@@ -155,6 +155,16 @@ class Labels {
   static String genre(String raw) =>
       _genres[_clean(raw)] ?? _capitalize(raw);
 
+  /// Chemin inverse : les écritures anglaises connues d'un genre affiché
+  /// en français (« Comédie » → « comedy »). Vide pour un genre inconnu.
+  static List<String> englishNames(String label) {
+    final wanted = label.trim().toLowerCase();
+    return [
+      for (final e in _genres.entries)
+        if (e.value.toLowerCase() == wanted) e.key,
+    ];
+  }
+
   static List<String> genres(List<String> raw) {
     final out = <String>[];
     for (final g in raw) {

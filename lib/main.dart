@@ -222,6 +222,20 @@ class AppScrollBehavior extends MaterialScrollBehavior {
       };
 }
 
+/// Pages de lecture (fiches) : la souris y sélectionne le texte au lieu
+/// de faire glisser la page. La molette, le doigt et le pavé tactile
+/// défilent toujours.
+class TextPageScrollBehavior extends MaterialScrollBehavior {
+  const TextPageScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.trackpad,
+      };
+}
+
 class AnimeOrganizerApp extends StatelessWidget {
   const AnimeOrganizerApp({super.key});
 
