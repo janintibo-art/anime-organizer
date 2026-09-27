@@ -18,7 +18,18 @@ import 'discover_detail_screen.dart';
 /// Onglet Découvrir : le catalogue AniList, filtrable, avec chargement au fil
 /// du défilement. Ce que tu as déjà sur le disque est signalé d'un repère.
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({super.key});
+  /// Genre, étiquette ou recherche déjà choisis, par exemple en arrivant
+  /// d'une fiche dont on a touché un genre : on entre directement filtré.
+  final String? initialGenre;
+  final String? initialTag;
+  final String? initialSearch;
+
+  const DiscoverScreen({
+    super.key,
+    this.initialGenre,
+    this.initialTag,
+    this.initialSearch,
+  });
 
   @override
   State<DiscoverScreen> createState() => _DiscoverScreenState();
@@ -46,9 +57,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   String _sort = 'TRENDING_DESC';
   String _format = '';
-  String _genre = '';
-  String _tag = '';
-  String _search = '';
+  late String _genre = widget.initialGenre ?? '';
+  late String _tag = widget.initialTag ?? '';
+  late String _search = widget.initialSearch ?? '';
   bool _seasonOnly = false;
   bool _wishlistOnly = false;
   bool _releasesMode = false;
@@ -71,6 +82,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   void initState() {
     super.initState();
+    if (_search.isNotEmpty) _searchController.text = _search;
     _scroll.addListener(() {
       if (_scroll.position.pixels >
           _scroll.position.maxScrollExtent - 600) {

@@ -9,6 +9,7 @@ import '../services/library_controller.dart';
 import '../services/translate_api.dart';
 import '../widgets/watch_links.dart';
 import 'detail_screen.dart';
+import 'discover_screen.dart';
 
 /// Fiche d'une série du catalogue, avant de l'avoir sur le disque.
 class DiscoverDetailScreen extends StatefulWidget {
@@ -124,7 +125,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                               backgroundColor: Palette.raised,
                               color: Palette.shu),
                         ),
-                      Text(
+                      SelectableText(
                         synopsis == null || synopsis.isEmpty
                             ? 'Pas de synopsis pour cette série.'
                             : synopsis,
@@ -349,7 +350,7 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
                             color: Palette.muted, fontSize: 11.5)),
                   ),
                   Expanded(
-                    child: Text(row[1],
+                    child: SelectableText(row[1],
                         style: const TextStyle(fontSize: 13, height: 1.35)),
                   ),
                 ],
@@ -411,18 +412,43 @@ class _DiscoverDetailScreenState extends State<DiscoverDetailScreen> {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: Labels.genres(meta.genres)
-          .map((g) => Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0x73D6B86A)),
-                  borderRadius: BorderRadius.circular(radiusSm),
+      children: meta.genres
+          .map((raw) => InkWell(
+                onTap: () => _openGenre(raw),
+                borderRadius: BorderRadius.circular(radiusSm),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0x73D6B86A)),
+                    borderRadius: BorderRadius.circular(radiusSm),
+                  ),
+                  child: Text(Labels.genre(raw),
+                      style: TextStyle(color: Palette.kin, fontSize: 12)),
                 ),
-                child: Text(g,
-                    style: TextStyle(color: Palette.kin, fontSize: 12)),
               ))
           .toList(),
+    );
+  }
+
+  /// Ouvre le catalogue filtré sur ce genre. AniList a une liste de genres
+  /// et une liste d'étiquettes toutes deux figées ; les autres sources
+  /// (Kitsu, MyAnimeList…) ont des catégories libres qu'aucun filtre ne
+  /// connaît, d'où le repli sur une recherche par ce mot.
+  void _openGenre(String raw) {
+    final isGenre = AniListApi.genreList
+        .any((g) => g.toLowerCase() == raw.toLowerCase());
+    final isTag = !isGenre &&
+        AniListApi.tagList.any((t) => t.toLowerCase() == raw.toLowerCase());
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DiscoverScreen(
+          initialGenre: isGenre ? raw : null,
+          initialTag: isTag ? raw : null,
+          initialSearch: (isGenre || isTag) ? null : raw,
+        ),
+      ),
     );
   }
 
