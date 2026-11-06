@@ -159,3 +159,48 @@ jobs:
           name: AnimeOrganizer-Portable-Windows
           path: AnimeOrganizer-Windows-portable.zip
           retention-days: 30
+
+
+  release:
+    name: Publier les telechargements
+    runs-on: ubuntu-latest
+    needs: [android, windows]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: AnimeOrganizer-Android
+          path: dist/android
+      - uses: actions/download-artifact@v4
+        with:
+          name: AnimeOrganizer-Installateur-Windows
+          path: dist/windows-installer
+      - uses: actions/download-artifact@v4
+        with:
+          name: AnimeOrganizer-Portable-Windows
+          path: dist/windows-portable
+      - name: Preparer les fichiers publics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp dist/android/AnimeOrganizer.apk release/AnimeOrganizer.apk
+          find dist/windows-installer -type f -name '*.exe' -print -quit | xargs -r -I {} cp '{}' release/AnimeOrganizer-Setup.exe
+          cp dist/windows-portable/AnimeOrganizer-Windows-portable.zip release/AnimeOrganizer-Windows-portable.zip
+          test -s release/AnimeOrganizer.apk
+          test -s release/AnimeOrganizer-Setup.exe
+          test -s release/AnimeOrganizer-Windows-portable.zip
+      - name: Publier dans GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v1.${{ github.run_number }}.0"
+          gh release create "$TAG" release/* \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Anime Organizer $TAG" \
+            --notes "Application gratuite pour Android et Windows. Trois telechargements : APK, installateur Windows et version portable." \
+            --latest

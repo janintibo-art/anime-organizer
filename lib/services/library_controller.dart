@@ -616,6 +616,7 @@ class LibraryController extends ChangeNotifier {
     anime.nativeTitle = meta.titleNative;
     anime.romajiTitle = meta.titleRomaji;
     anime.imageUrl = meta.imageUrl;
+    anime.backdropUrl = null; // Jamais reutiliser une image de l'ancienne identification.
     anime.posterPath = null;
     anime.synopsisEn = meta.synopsis;
     anime.synopsisTranslated = null;

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import '../main.dart';
 import '../models/anime.dart';
 import '../models/anime_meta.dart';
 import '../services/library_controller.dart';
+import '../services/backdrop_service.dart';
 import '../services/metadata_service.dart';
 import '../widgets/poster_image.dart';
 import 'genre_links.dart';
@@ -26,6 +28,24 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _immersiveBackground = true;
 
   Anime get anime => widget.anime;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadBackdrop());
+  }
+
+  Future<void> _loadBackdrop() async {
+    if (anime.backdropUrl != null && anime.backdropUrl!.isNotEmpty) return;
+    final apiKey = library.settings.tmdbKey.trim();
+    if (apiKey.isEmpty) return; // Pas de cle: l'affiche existante reste visible.
+    final title = anime.apiTitle ?? anime.folderTitle;
+    final url = await BackdropService.findBackdrop(title, apiKey);
+    if (!mounted || url == null || url.isEmpty) return;
+    anime.backdropUrl = url;
+    await library.save();
+    if (mounted) setState(() {});
+  }
 
   Future<void> _run(Future<void> Function() action, String failure) async {
     setState(() => _working = true);
@@ -147,8 +167,8 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Widget _backgroundArt() {
-    final path = anime.posterPath;
-    final remote = anime.imageUrl;
+    final path = anime.backdropUrl == null ? anime.posterPath : null;
+    final remote = anime.backdropUrl ?? anime.imageUrl;
     Widget image;
     if (path != null && File(path).existsSync()) {
       image = Image.file(File(path), fit: BoxFit.cover,

@@ -97,6 +97,7 @@ class Anime {
 
   int? malId;
   String? imageUrl;
+  String? backdropUrl;
   String? posterPath;
   String? synopsisEn;
   String? synopsisTranslated;
@@ -142,6 +143,7 @@ class Anime {
     this.frenchTitle,
     this.malId,
     this.imageUrl,
+    this.backdropUrl,
     this.posterPath,
     this.synopsisEn,
     this.synopsisTranslated,
@@ -334,6 +336,7 @@ class Anime {
         'frenchTitle': frenchTitle,
         'malId': malId,
         'imageUrl': imageUrl,
+        'backdropUrl': backdropUrl,
         'posterPath': posterPath,
         'synopsisEn': synopsisEn,
         'synopsisTranslated': synopsisTranslated,
@@ -368,6 +371,7 @@ class Anime {
         frenchTitle: j['frenchTitle'] as String?,
         malId: j['malId'] as int?,
         imageUrl: j['imageUrl'] as String?,
+        backdropUrl: j['backdropUrl'] as String?,
         posterPath: j['posterPath'] as String?,
         synopsisEn: j['synopsisEn'] as String?,
         synopsisTranslated: j['synopsisTranslated'] as String?,
