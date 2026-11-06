@@ -36,6 +36,7 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Future<void> _loadBackdrop({bool force = false}) async {
+    if (anime.backdropManual) return;
     if (!force && anime.backdropUrl != null && anime.backdropUrl!.isNotEmpty) return;
     final apiKey = library.settings.tmdbKey.trim();
     if (apiKey.isEmpty) {
@@ -72,6 +73,99 @@ class _DetailScreenState extends State<DetailScreen> {
     } finally {
       if (force && mounted) setState(() => _working = false);
     }
+  }
+
+  Future<void> _chooseBackdrop() async {
+    final key = library.settings.tmdbKey.trim();
+    if (key.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Renseigne une clé TMDB dans les réglages pour choisir une image.'),
+      ));
+      return;
+    }
+    setState(() => _working = true);
+    var candidates = <String>[];
+    try {
+      final titles = <String>{
+        if (anime.apiTitle != null) anime.apiTitle!,
+        if (anime.romajiTitle != null) anime.romajiTitle!,
+        anime.folderTitle,
+      };
+      for (final title in titles.where((t) => t.trim().isNotEmpty)) {
+        candidates = await BackdropService.findBackdrops(title, key);
+        if (candidates.isNotEmpty) break;
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+    if (!mounted) return;
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Aucun panorama disponible pour cette série.'),
+      ));
+      return;
+    }
+    // null : annuler; chaine vide : repasser en mode automatique.
+    final selection = await showModalBottomSheet<String>(
+      context: context, isScrollControlled: true,
+      backgroundColor: Palette.surface,
+      builder: (ctx) => SafeArea(child: FractionallySizedBox(
+        heightFactor: 0.82,
+        child: Column(children: [
+          Padding(padding: const EdgeInsets.all(16), child: Row(children: [
+            Expanded(child: Text('Choisir un panorama',
+                style: TextStyle(color: Palette.text, fontSize: 19,
+                    fontWeight: FontWeight.bold))),
+            IconButton(onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(Icons.close)),
+          ])),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.pop(ctx, ''),
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Revenir au panorama automatique'),
+            )),
+          Expanded(child: LayoutBuilder(builder: (context, constraints) {
+            final columns = constraints.maxWidth > 800 ? 3 : 2;
+            return GridView.builder(
+              padding: const EdgeInsets.all(12),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns, childAspectRatio: 16 / 10,
+                crossAxisSpacing: 10, mainAxisSpacing: 10),
+              itemCount: candidates.length,
+              itemBuilder: (_, i) {
+                final url = candidates[i];
+                return InkWell(onTap: () => Navigator.pop(ctx, url),
+                  child: Stack(fit: StackFit.expand, children: [
+                    ClipRRect(borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(imageUrl: url,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => const Center(
+                          child: CircularProgressIndicator()),
+                        errorWidget: (_, __, ___) => const Icon(Icons.broken_image))),
+                    if (anime.backdropUrl == url)
+                      const Align(alignment: Alignment.topRight,
+                        child: Padding(padding: EdgeInsets.all(8),
+                          child: Icon(Icons.check_circle, color: Colors.white))),
+                  ]),
+                );
+              },
+            );
+          })),
+        ]),
+      )),
+    );
+    if (selection == null || !mounted) return;
+    if (selection.isEmpty) {
+      anime.backdropManual = false;
+      anime.backdropUrl = null;
+    } else {
+      anime.backdropManual = true;
+      anime.backdropUrl = selection;
+    }
+    await library.save();
+    if (mounted) setState(() {});
+    if (selection.isEmpty) unawaited(_loadBackdrop());
   }
 
   Future<void> _run(Future<void> Function() action, String failure) async {
@@ -442,6 +536,11 @@ class _DetailScreenState extends State<DetailScreen> {
                             onPressed: _working ? null : () => _loadBackdrop(force: true),
                             icon: const Icon(Icons.landscape_outlined, size: 18),
                             label: const Text('Actualiser le panorama'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _working ? null : _chooseBackdrop,
+                            icon: const Icon(Icons.collections_outlined, size: 18),
+                            label: const Text('Choisir le panorama'),
                           ),
                           PopupMenuButton<String>(
                             tooltip: 'Catégorie',
