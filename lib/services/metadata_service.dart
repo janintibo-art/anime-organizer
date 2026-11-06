@@ -6,6 +6,7 @@ import 'jikan_api.dart';
 import 'animethemes_api.dart';
 import 'kitsu_api.dart';
 import 'tmdb_api.dart';
+import 'tvmaze_api.dart';
 
 /// Choisit la source de metadonnees.
 /// En mode automatique : AniList d'abord (rapide et complet), Jikan en
@@ -160,7 +161,9 @@ class MetadataService {
       if (bestSimilarity >= 0.75) return best;
     }
 
-    return bestSimilarity >= 0.32 ? best : null;
+    // Seuil conservateur : un titre peu ressemblant est une fiche fausse,
+    // pas une identification réussie. Une recherche manuelle reste possible.
+    return bestSimilarity >= 0.62 ? best : null;
   }
 
   static Future<AnimeMeta?> search(
@@ -190,6 +193,8 @@ class MetadataService {
         return AnimeThemesApi.search(title, limit: limit);
       case 'tmdb':
         return TmdbApi.search(title, tmdbKey, limit: limit);
+      case 'tvmaze':
+        return TvmazeApi.search(title, limit: limit);
       default:
         // Trois sources d'affilee : si AniList est coupe et MyAnimeList
         // surcharge, Kitsu prend le relais.

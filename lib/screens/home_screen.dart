@@ -133,6 +133,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             actions: [
               IconButton(
+                tooltip: 'Verifier les fiches incoherentes',
+                onPressed: library.busy ? null : () async {
+                  final count = await library.repairWrongMatches();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('$count fiche(s) corrigee(s) apres verification.')));
+                },
+                icon: const Icon(Icons.fact_check_outlined),
+              ),
+              IconButton(
                 tooltip: 'Relancer le scan',
                 onPressed: library.busy ? null : () => library.scan(),
                 icon: const Icon(Icons.refresh),

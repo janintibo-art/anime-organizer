@@ -80,6 +80,6 @@ class AnimeMeta {
         if (year != null) '$year',
         if (type != null) type!,
         if (episodes != null) '$episodes ep.',
-        source == 'anilist' ? 'AniList' : 'MyAnimeList',
+        source == 'anilist' ? 'AniList' : (source == 'tvmaze' ? 'TVmaze' : (source == 'tmdb' ? 'TMDB' : 'MyAnimeList')),
       ].join(' · ');
 }

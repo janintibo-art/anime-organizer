@@ -176,7 +176,12 @@ class Scanner {
     for (final e in episodes.take(12)) {
       final m = marker.firstMatch(e.name);
       if (m == null || m.start < 4) continue;
-      final candidate = cleanTitle(e.name.substring(0, m.start));
+      var candidate = cleanTitle(e.name.substring(0, m.start));
+      // 'Mike.Judges.Beavis.and.Butt-Head.S01E01...' : le nom du
+      // distributeur/auteur n'est pas le titre reconnu par les catalogues.
+      candidate = candidate.replaceFirst(
+          RegExp(r'^mike[ ._-]*judge[\s._-]*s?[ ._-]+', caseSensitive: false), '');
+      candidate = candidate.replaceAll(RegExp(r'[._]+'), ' ').trim();
       if (candidate.length >= 4 && candidate.length <= 100) names.add(candidate);
     }
     if (names.isEmpty) return null;

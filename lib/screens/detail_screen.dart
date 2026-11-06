@@ -86,7 +86,8 @@ class _DetailScreenState extends State<DetailScreen> {
     final results = await MetadataService.searchMany(
       query,
       source: (anime.category == 'western' || anime.category == 'adult')
-          ? 'tmdb' : library.settings.metaSource,
+          ? (library.settings.tmdbKey.trim().isEmpty ? 'tvmaze' : 'tmdb')
+          : library.settings.metaSource,
       tmdbKey: library.settings.tmdbKey,
     );
     if (!mounted) return;
@@ -126,6 +127,7 @@ class _DetailScreenState extends State<DetailScreen> {
 
     await _run(() async {
       library.applyMeta(anime, chosen);
+      library.manualIds.add(anime.id);
       library.remember(anime.folderTitle, chosen.titleRomaji ?? chosen.title);
       await library.save();
       if (library.settings.autoTranslate) {

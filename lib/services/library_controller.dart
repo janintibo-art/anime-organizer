@@ -171,6 +171,9 @@ class LibraryController extends ChangeNotifier {
   /// Un dossier deja identifie ne sera plus jamais recherche.
   Map<String, String> knownTitles = {};
 
+  /// Corrections confirmees par l'utilisateur : jamais retouchees en masse.
+  Set<String> manualIds = {};
+
   String _key(String folderTitle) =>
       MetadataService.stripAccents(folderTitle).replaceAll(
           RegExp(r'[^a-z0-9]'), '');
@@ -233,6 +236,8 @@ class LibraryController extends ChangeNotifier {
           [];
       knownTitles = ((data['knownTitles'] as Map?) ?? const {})
           .map((k, v) => MapEntry(k.toString(), v.toString()));
+      manualIds = (data['manualIds'] as List? ?? const [])
+          .map((e) => e.toString()).toSet();
       wishlist = (data['wishlist'] as List?)
               ?.map((e) =>
                   AnimeMeta.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -260,6 +265,7 @@ class LibraryController extends ChangeNotifier {
         'animes': animes.map((a) => a.toJson()).toList(),
         'wishlist': wishlist.map((w) => w.toJson()).toList(),
         'knownTitles': knownTitles,
+        'manualIds': manualIds.toList(),
       }), flush: true);
 
       if (f.existsSync()) {
@@ -339,6 +345,11 @@ class LibraryController extends ChangeNotifier {
         if (old != null) {
           old.episodes = item.episodes;
           old.folderTitle = item.folderTitle;
+          if (old.category == 'anime' && !manualIds.contains(old.id)) {
+            final fileTitle = Scanner.titleFromFiles(item.episodes);
+            final guessed = _guessCategory(fileTitle ?? old.folderTitle);
+            if (guessed != 'anime') old.category = guessed;
+          }
           merged.add(old);
         } else {
           // Catégorie initiale ; l'utilisateur peut ensuite la modifier.
@@ -387,7 +398,7 @@ class LibraryController extends ChangeNotifier {
 
   static String _guessCategory(String title) {
     final t = MetadataService.stripAccents(title);
-    if (RegExp(r'\b(south park|family guy|american dad|rick and morty|'
+    if (RegExp(r'\b(beavis and butt[- ]head|south park|family guy|american dad|rick and morty|'
         r'bojack horseman|big mouth|solar opposites)\b').hasMatch(t)) {
       return 'adult';
     }
@@ -397,6 +408,56 @@ class LibraryController extends ChangeNotifier {
       return 'western';
     }
     return 'anime';
+  }
+
+  /// Re-examine les fiches deja identifiees en comparant le titre avec
+  /// celui qui revient dans plusieurs episodes. Ne modifie rien sans
+  /// trouver une nouvelle correspondance fiable dans les catalogues.
+  Future<int> repairWrongMatches() async {
+    if (busy) return 0;
+    busy = true;
+    var repaired = 0;
+    try {
+      final suspicious = animes.where((a) {
+        if (manualIds.contains(a.id)) return false;
+        final file = Scanner.titleFromFiles(a.episodes);
+        if (file == null) return false;
+        if (!a.metaFetched) return true;
+        final names = [a.apiTitle, a.romajiTitle, a.frenchTitle]
+            .whereType<String>();
+        return names.every((n) => MetadataService.similarity(file, n) < 0.48);
+      }).toList();
+      for (var i = 0; i < suspicious.length; i++) {
+        final anime = suspicious[i];
+        final file = Scanner.titleFromFiles(anime.episodes)!;
+        _report('Verification ${i + 1}/${suspicious.length} : $file',
+            (i + 1) / suspicious.length);
+        final category = _guessCategory(file);
+        final isWestern = category == 'western' || category == 'adult';
+        final source = isWestern
+            ? (settings.tmdbKey.trim().isEmpty ? 'tvmaze' : 'tmdb')
+            : settings.metaSource;
+        final match = await MetadataService.smartSearch(file,
+            source: source, tmdbKey: settings.tmdbKey,
+            episodeCount: anime.episodes.where((e) => !e.bonus).length);
+        if (match == null ||
+            MetadataService.similarity(file, match.title) < 0.72) continue;
+        applyMeta(anime, match);
+        if (category != 'anime') anime.category = category;
+        remember(anime.folderTitle, match.titleRomaji ?? match.title);
+        if (settings.offlinePosters) {
+          anime.posterPath = await PosterCache.ensure(anime.id, anime.imageUrl);
+        }
+        repaired++;
+        await save();
+        notifyListeners();
+      }
+      await save();
+      return repaired;
+    } finally {
+      busy = false;
+      _report('');
+    }
   }
 
   /// Recupere image, synopsis et genres pour une serie.
@@ -412,7 +473,7 @@ class LibraryController extends ChangeNotifier {
     //    ce que les bases en ligne savent chercher.
     SeedEntry? seed;
     IndexEntry? indexed;
-    if (resolved == null) {
+    if (resolved == null && anime.category == 'anime') {
       seed = SeedDatabase.match(anime.folderTitle, episodeCount: count);
       if (seed != null) {
         resolved = seed.searchQuery;
@@ -423,11 +484,22 @@ class LibraryController extends ChangeNotifier {
       }
     }
 
-    final preferredSource = (anime.category == 'western' || anime.category == 'adult')
-        ? 'tmdb'
+    // Les dessins animes occidentaux ne sont pas dans les bases de mangas.
+    // TVmaze fournit une recherche sans cle lorsque TMDB n'est pas configure.
+    final isWestern = anime.category == 'western' || anime.category == 'adult';
+    final preferredSource = isWestern
+        ? (settings.tmdbKey.trim().isNotEmpty ? 'tmdb' : 'tvmaze')
         : settings.metaSource;
+    // Si le nom des videos est explicite, il l'emporte sur un dossier
+    // trompeur (sauf correction manuelle deja validee).
+    final inferredDifferent = fileTitle != null &&
+        MetadataService.similarity(fileTitle, query) < 0.58;
+    final primaryQuery = (overrideQuery == null &&
+            !manualIds.contains(anime.id) && inferredDifferent)
+        ? fileTitle!
+        : (resolved ?? query);
     var meta = await MetadataService.smartSearch(
-      resolved ?? query,
+      primaryQuery,
       source: preferredSource,
       episodeCount: count,
       tmdbKey: settings.tmdbKey,
@@ -436,7 +508,8 @@ class LibraryController extends ChangeNotifier {
     // Le titre inclus dans le fichier est souvent meilleur que le dossier.
     // Une recherche alternative ne remplace jamais une identification validée.
     if (meta == null && overrideQuery == null && fileTitle != null &&
-        MetadataService.similarity(fileTitle, query) < 0.95) {
+        !manualIds.contains(anime.id) &&
+        MetadataService.similarity(fileTitle, primaryQuery) < 0.95) {
       meta = await MetadataService.smartSearch(fileTitle,
           source: preferredSource, episodeCount: count,
           tmdbKey: settings.tmdbKey);
@@ -502,7 +575,7 @@ class LibraryController extends ChangeNotifier {
           if (meta != null || essai.isEmpty) continue;
           meta = await MetadataService.smartSearch(
             essai,
-            source: settings.metaSource,
+            source: preferredSource,
             episodeCount: count,
             tmdbKey: settings.tmdbKey,
           );
@@ -748,6 +821,7 @@ class LibraryController extends ChangeNotifier {
         'animes': animes.map((a) => a.toJson()).toList(),
         'wishlist': wishlist.map((w) => w.toJson()).toList(),
         'knownTitles': knownTitles,
+        'manualIds': manualIds.toList(),
       };
 
   String _two(int v) => v.toString().padLeft(2, '0');
