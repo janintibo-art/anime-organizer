@@ -35,16 +35,43 @@ class _DetailScreenState extends State<DetailScreen> {
     unawaited(_loadBackdrop());
   }
 
-  Future<void> _loadBackdrop() async {
-    if (anime.backdropUrl != null && anime.backdropUrl!.isNotEmpty) return;
+  Future<void> _loadBackdrop({bool force = false}) async {
+    if (!force && anime.backdropUrl != null && anime.backdropUrl!.isNotEmpty) return;
     final apiKey = library.settings.tmdbKey.trim();
-    if (apiKey.isEmpty) return; // Pas de cle: l'affiche existante reste visible.
-    final title = anime.apiTitle ?? anime.folderTitle;
-    final url = await BackdropService.findBackdrop(title, apiKey);
-    if (!mounted || url == null || url.isEmpty) return;
-    anime.backdropUrl = url;
-    await library.save();
-    if (mounted) setState(() {});
+    if (apiKey.isEmpty) {
+      if (force && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Renseigne ta clé TMDB dans les réglages pour chercher un panorama.'),
+        ));
+      }
+      return;
+    }
+    if (force && mounted) setState(() => _working = true);
+    try {
+      final titles = <String>{
+        if (anime.apiTitle != null) anime.apiTitle!,
+        if (anime.romajiTitle != null) anime.romajiTitle!,
+        anime.folderTitle,
+      }.where((t) => t.trim().isNotEmpty);
+      String? url;
+      for (final title in titles) {
+        url = await BackdropService.findBackdrop(title, apiKey);
+        if (url != null) break;
+      }
+      if (!mounted) return;
+      if (url != null) {
+        anime.backdropUrl = url;
+        await library.save();
+        if (mounted) setState(() {});
+      }
+      if (force && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+          url == null ? 'Aucun panorama fiable trouvé : affiche conservée.' : 'Panorama actualisé.'
+        )));
+      }
+    } finally {
+      if (force && mounted) setState(() => _working = false);
+    }
   }
 
   Future<void> _run(Future<void> Function() action, String failure) async {
@@ -410,6 +437,11 @@ class _DetailScreenState extends State<DetailScreen> {
                                 size: 18),
                             label: Text(_immersiveBackground
                                 ? 'Fond classique' : 'Image plein écran'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _working ? null : () => _loadBackdrop(force: true),
+                            icon: const Icon(Icons.landscape_outlined, size: 18),
+                            label: const Text('Actualiser le panorama'),
                           ),
                           PopupMenuButton<String>(
                             tooltip: 'Catégorie',
