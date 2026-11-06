@@ -115,6 +115,9 @@ class Anime {
   int metaFailCount;
   bool favorite;
 
+  /// anime | western | adult | other. Anciennes fiches = anime.
+  String category;
+
   /// Chemins des episodes deja regardes.
   List<String> watchedPaths;
 
@@ -155,6 +158,7 @@ class Anime {
     this.metaFailed = false,
     this.metaFailCount = 0,
     this.favorite = false,
+    this.category = 'anime',
     List<String>? watchedPaths,
     Map<String, bool>? audioFr,
     this.lastEpisodePath,
@@ -346,6 +350,7 @@ class Anime {
         'metaFailed': metaFailed,
         'metaFailCount': metaFailCount,
         'favorite': favorite,
+        'category': category,
         'watchedPaths': watchedPaths,
         'audioFr': audioFr,
         'lastEpisodePath': lastEpisodePath,
@@ -379,6 +384,7 @@ class Anime {
         metaFailed: j['metaFailed'] as bool? ?? false,
         metaFailCount: j['metaFailCount'] as int? ?? 0,
         favorite: j['favorite'] as bool? ?? false,
+        category: j['category'] as String? ?? 'anime',
         watchedPaths:
             (j['watchedPaths'] as List?)?.map((e) => e.toString()).toList(),
         audioFr: (j['audioFr'] as Map?)?.map(

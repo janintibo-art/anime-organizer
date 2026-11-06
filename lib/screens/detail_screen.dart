@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -21,6 +23,7 @@ class DetailScreen extends StatefulWidget {
 class _DetailScreenState extends State<DetailScreen> {
   bool _working = false;
   bool _showOriginal = false;
+  bool _immersiveBackground = true;
 
   Anime get anime => widget.anime;
 
@@ -82,7 +85,9 @@ class _DetailScreenState extends State<DetailScreen> {
     setState(() => _working = true);
     final results = await MetadataService.searchMany(
       query,
-      source: library.settings.metaSource,
+      source: (anime.category == 'western' || anime.category == 'adult')
+          ? 'tmdb' : library.settings.metaSource,
+      tmdbKey: library.settings.tmdbKey,
     );
     if (!mounted) return;
     setState(() => _working = false);
@@ -137,6 +142,35 @@ class _DetailScreenState extends State<DetailScreen> {
     setState(() => _working = false);
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _backgroundArt() {
+    final path = anime.posterPath;
+    final remote = anime.imageUrl;
+    Widget image;
+    if (path != null && File(path).existsSync()) {
+      image = Image.file(File(path), fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink());
+    } else if (remote != null && remote.isNotEmpty) {
+      image = CachedNetworkImage(imageUrl: remote, fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+          errorWidget: (_, __, ___) => const SizedBox.shrink());
+    } else {
+      image = const SizedBox.shrink();
+    }
+    return IgnorePointer(
+      child: Stack(fit: StackFit.expand, children: [
+        image,
+        DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [const Color(0x8C000000), Palette.ink.withOpacity(0.82),
+                   Palette.ink.withOpacity(0.93)],
+          stops: const [0.0, 0.45, 1.0],
+        ))),
+      ]),
+    );
   }
 
   /// Les trois écritures du titre, quand elles sont connues.
@@ -285,7 +319,11 @@ class _DetailScreenState extends State<DetailScreen> {
         final seasons = _bySeason();
 
         return Scaffold(
-          body: ScrollConfiguration(
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (_immersiveBackground) _backgroundArt(),
+              ScrollConfiguration(
             behavior: const TextPageScrollBehavior(),
             child: CustomScrollView(
             slivers: [
@@ -342,6 +380,37 @@ class _DetailScreenState extends State<DetailScreen> {
                                 style: TextStyle(color: Palette.kin),
                               ),
                             ),
+                          OutlinedButton.icon(
+                            onPressed: () => setState(() =>
+                                _immersiveBackground = !_immersiveBackground),
+                            icon: Icon(_immersiveBackground
+                                ? Icons.wallpaper_outlined : Icons.image_outlined,
+                                size: 18),
+                            label: Text(_immersiveBackground
+                                ? 'Fond classique' : 'Image plein écran'),
+                          ),
+                          PopupMenuButton<String>(
+                            tooltip: 'Catégorie',
+                            onSelected: (value) async {
+                              anime.category = value;
+                              await library.save();
+                              library.refresh();
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'anime', child: Text('Animé japonais')),
+                              PopupMenuItem(value: 'western', child: Text('Dessin animé')),
+                              PopupMenuItem(value: 'adult', child: Text('Animation adulte')),
+                              PopupMenuItem(value: 'other', child: Text('Autre animation')),
+                            ],
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                Icon(Icons.category_outlined, size: 18, color: Palette.kin),
+                                const SizedBox(width: 6),
+                                Text('Catégorie', style: TextStyle(color: Palette.text)),
+                              ]),
+                            ),
+                          ),
                           OutlinedButton.icon(
                             onPressed: _working ? null : _searchAgain,
                             icon: const Icon(Icons.search, size: 18),
@@ -415,6 +484,8 @@ class _DetailScreenState extends State<DetailScreen> {
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
             ],
           ),
+              ),
+            ],
           ),
         );
       },

@@ -327,12 +327,22 @@ class LibraryController extends ChangeNotifier {
       var discovered = 0;
 
       for (final item in found) {
+        // Les corrections existantes doivent toujours primer sur le scan.
+        final inferred = Scanner.titleFromFiles(item.episodes);
+        if (inferred != null &&
+            (item.folderTitle.length < 4 ||
+             RegExp(r'^(serie|anime|saison|season|videos?|new folder|dossier)[ _-]*\d*$',
+               caseSensitive: false).hasMatch(item.folderTitle))) {
+          item.folderTitle = inferred;
+        }
         final old = existing[item.id];
         if (old != null) {
           old.episodes = item.episodes;
           old.folderTitle = item.folderTitle;
           merged.add(old);
         } else {
+          // Catégorie initiale ; l'utilisateur peut ensuite la modifier.
+          item.category = _guessCategory(item.folderTitle);
           merged.add(item);
           discovered++;
         }
@@ -375,9 +385,24 @@ class LibraryController extends ChangeNotifier {
     await scan();
   }
 
+  static String _guessCategory(String title) {
+    final t = MetadataService.stripAccents(title);
+    if (RegExp(r'\b(south park|family guy|american dad|rick and morty|'
+        r'bojack horseman|big mouth|solar opposites)\b').hasMatch(t)) {
+      return 'adult';
+    }
+    if (RegExp(r'\b(the simpsons|simpsons|les simpson|futurama|'
+        r'gravity falls|adventure time|regular show|scooby doo|'
+        r'batman the animated series)\b').hasMatch(t)) {
+      return 'western';
+    }
+    return 'anime';
+  }
+
   /// Recupere image, synopsis et genres pour une serie.
   Future<void> fetchOne(Anime anime, {String? overrideQuery, bool persist = true}) async {
     final query = overrideQuery ?? anime.folderTitle;
+    final fileTitle = Scanner.titleFromFiles(anime.episodes);
     final count = anime.episodes.where((e) => !e.bonus).length;
 
     // 1. Ta memoire : ce dossier a deja ete identifie une fois.
@@ -398,12 +423,24 @@ class LibraryController extends ChangeNotifier {
       }
     }
 
+    final preferredSource = (anime.category == 'western' || anime.category == 'adult')
+        ? 'tmdb'
+        : settings.metaSource;
     var meta = await MetadataService.smartSearch(
       resolved ?? query,
-      source: settings.metaSource,
+      source: preferredSource,
       episodeCount: count,
       tmdbKey: settings.tmdbKey,
     );
+
+    // Le titre inclus dans le fichier est souvent meilleur que le dossier.
+    // Une recherche alternative ne remplace jamais une identification validée.
+    if (meta == null && overrideQuery == null && fileTitle != null &&
+        MetadataService.similarity(fileTitle, query) < 0.95) {
+      meta = await MetadataService.smartSearch(fileTitle,
+          source: preferredSource, episodeCount: count,
+          tmdbKey: settings.tmdbKey);
+    }
 
     // 3. Rien en ligne mais la base locale connait la serie : on l'applique
     //    telle quelle, quitte a completer l'affiche plus tard.
@@ -443,7 +480,7 @@ class LibraryController extends ChangeNotifier {
       );
       if (english != null && english.trim().isNotEmpty) {
         meta = await MetadataService.smartSearch(english,
-            source: settings.metaSource,
+            source: preferredSource,
             episodeCount: anime.episodes.where((e) => !e.bonus).length);
       }
     }

@@ -22,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   String _query = '';
   String _genre = '';
+  String _category = ''; // '' | anime | western | adult | other
   bool _favoritesOnly = false;
   bool _vfOnly = false;
   String _collection = ''; // '' | todo | watching | done
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool get _filtering =>
       _query.isNotEmpty ||
       _genre.isNotEmpty ||
+      _category.isNotEmpty ||
       _favoritesOnly ||
       _vfOnly ||
       _collection.isNotEmpty;
@@ -175,6 +177,9 @@ class _HomeScreenState extends State<HomeScreen> {
       favoritesOnly: _favoritesOnly,
       vfOnly: _vfOnly,
     );
+    if (_category.isNotEmpty) {
+      items = items.where((a) => a.category == _category).toList();
+    }
     if (_collection.isNotEmpty) {
       items = items.where((a) => a.collection == _collection).toList();
     }
@@ -372,6 +377,21 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _sortChip(),
+                const SizedBox(width: 8),
+                for (final c in const [
+                  ['', 'Toutes animations'],
+                  ['anime', 'Animés japonais'],
+                  ['western', 'Dessins animés'],
+                  ['adult', 'Animation adulte'],
+                  ['other', 'Autres animations'],
+                ]) ...[
+                  _chip(
+                    label: c[1],
+                    selected: _category == c[0],
+                    onTap: () => setState(() => _category = c[0]),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 const SizedBox(width: 8),
                 _chip(
                   label: 'Favoris',

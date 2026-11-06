@@ -163,6 +163,33 @@ class Scanner {
     return s.isEmpty ? raw.trim() : s;
   }
 
+  /// Une série dont le dossier est obscur peut être reconnue via ses vidéos.
+  /// On ne garde que le préfixe précédant un marqueur de saison/épisode.
+  static String? titleFromFiles(List<Episode> episodes) {
+    if (episodes.isEmpty) return null;
+    final names = <String>[];
+    final marker = RegExp(
+      r'\b(?:s\d{1,2}[ ._-]*e\d{1,3}|saison[ ._-]*\d{1,2}|'
+      r'season[ ._-]*\d{1,2}|[eé]pisode[ ._-]*\d{1,3}|ep[ ._-]*\d{1,3})\b',
+      caseSensitive: false,
+    );
+    for (final e in episodes.take(12)) {
+      final m = marker.firstMatch(e.name);
+      if (m == null || m.start < 4) continue;
+      final candidate = cleanTitle(e.name.substring(0, m.start));
+      if (candidate.length >= 4 && candidate.length <= 100) names.add(candidate);
+    }
+    if (names.isEmpty) return null;
+    final counts = <String, int>{};
+    for (final name in names) {
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+    final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    // Un fichier unique explicite suffit ; sinon confirmation par deux vidéos.
+    if (episodes.length > 1 && sorted.first.value < 2) return null;
+    return sorted.first.key;
+  }
+
   /// Tri naturel : « Episode 2 » avant « Episode 10 ».
   static int naturalCompare(String a, String b) {
     final ma = _digits.allMatches(a).toList();
