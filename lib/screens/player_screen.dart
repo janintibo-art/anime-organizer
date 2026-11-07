@@ -610,7 +610,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       library.refresh();
       if (mounted) {
         _flash('F4 : nouvel extrait conserve dans la bibliotheque musicale !');
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           duration: Duration(seconds: 5),
           content: Text('Nouvel extrait enregistre : ${p.basename(path)}'),
         ));
