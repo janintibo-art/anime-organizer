@@ -98,6 +98,9 @@ class Anime {
   int? malId;
   String? imageUrl;
   String? backdropUrl;
+  // V26_SLIDESHOW: preferences sauvegardees par fiche.
+  bool slideshowEnabled = false;
+  int slideshowSeconds = 8;
   String? backdropLocalPath; // V25: image personnelle copiee dans le stockage de l’application.
   bool backdropManual = false;
   double backdropAlignX = 0.0;
@@ -168,6 +171,8 @@ class Anime {
     this.imageUrl,
     this.backdropUrl,
     this.backdropLocalPath,
+    this.slideshowEnabled = false,
+    this.slideshowSeconds = 8,
     this.backdropManual = false,
     this.backdropAlignX = 0.0,
     this.backdropAlignY = 0.0,
@@ -367,6 +372,8 @@ class Anime {
         'imageUrl': imageUrl,
         'backdropUrl': backdropUrl,
         'backdropLocalPath': backdropLocalPath,
+        'slideshowEnabled': slideshowEnabled,
+        'slideshowSeconds': slideshowSeconds,
         'backdropManual': backdropManual,
         'backdropAlignX': backdropAlignX,
         'backdropAlignY': backdropAlignY,
@@ -407,6 +414,8 @@ class Anime {
         imageUrl: j['imageUrl'] as String?,
         backdropUrl: j['backdropUrl'] as String?,
         backdropLocalPath: j['backdropLocalPath'] as String?,
+        slideshowEnabled: j['slideshowEnabled'] as bool? ?? false,
+        slideshowSeconds: (j['slideshowSeconds'] as int? ?? 8).clamp(3, 60).toInt(),
         backdropManual: j['backdropManual'] as bool? ?? false,
         backdropAlignX: (j['backdropAlignX'] as num?)?.toDouble() ?? 0.0,
         backdropAlignY: (j['backdropAlignY'] as num?)?.toDouble() ?? 0.0,

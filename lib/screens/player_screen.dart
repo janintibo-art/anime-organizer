@@ -15,6 +15,7 @@ import '../models/anime.dart';
 import '../services/library_controller.dart';
 import '../services/opensubtitles_api.dart';
 import '../services/poster_cache.dart';
+import '../services/capture_gallery.dart';
 import '../services/video_hash.dart';
 
 class PlayerScreen extends StatefulWidget {
@@ -556,6 +557,38 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _flash('Affiche mise à jour.');
   }
 
+  // V26_F2_CAPTURE: capture la trame video (sans l'interface du lecteur).
+  bool _captureBusy = false;
+  Future<void> _captureForGallery({bool useAsPanorama = false}) async {
+    final anime = widget.anime;
+    if (anime == null || widget.episodes.isEmpty || _captureBusy) return;
+    _captureBusy = true;
+    try {
+      final bytes = await _player.screenshot();
+      if (bytes == null || bytes.length < 1024) {
+        if (mounted) _flash('Capture impossible pour cette video.');
+        return;
+      }
+      final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+      final path = await CaptureGallery.save(anime, episode, bytes);
+      if (useAsPanorama) {
+        anime.backdropLocalPath = path;
+        anime.backdropManual = true;
+        anime.backdropAlignX = 0;
+        anime.backdropAlignY = 0;
+        await library.save();
+      }
+      library.refresh();
+      if (mounted) _flash(useAsPanorama
+          ? 'Capture enregistree et definie comme panorama.'
+          : 'Capture enregistree : ${path.split(Platform.pathSeparator).last}');
+    } catch (e) {
+      if (mounted) _flash('Capture impossible : $e');
+    } finally {
+      _captureBusy = false;
+    }
+  }
+
   void _persist({bool forceWatched = false}) {
     if (widget.onRemoteProgress != null && widget.episodes.isNotEmpty) {
       unawaited(widget.onRemoteProgress!(
@@ -765,7 +798,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _onKey(KeyEvent event) {
     if (event is! KeyDownEvent) return;
     final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
+    // F2: raccourci Windows pour capturer directement la video.
+    if (key == LogicalKeyboardKey.f2) {
+      _captureForGallery();
+    } else if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
       _player.playOrPause();
     } else if (key == LogicalKeyboardKey.arrowRight) {
       _seekBy(library.settings.seekStepSeconds);
@@ -1051,6 +1087,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                   const SizedBox(height: 16),
 
+                  if (widget.anime != null) ...[
+                    _optionTitle('Captures de la serie'),
+                    OutlinedButton.icon(
+                      onPressed: () { Navigator.pop(ctx); _captureForGallery(); },
+                      icon: const Icon(Icons.camera_alt_outlined),
+                      label: const Text('Capturer vers la galerie (F2)'),
+                    ),
+                    const SizedBox(height: 6),
+                    OutlinedButton.icon(
+                      onPressed: () { Navigator.pop(ctx); _captureForGallery(useAsPanorama: true); },
+                      icon: const Icon(Icons.wallpaper_outlined),
+                      label: const Text('Capturer comme panorama principal'),
+                    ),
+                  ],
                   _optionTitle('Ajustement de l\'image'),
                   _choices(
                     values: const {

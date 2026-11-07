@@ -14,6 +14,7 @@ import '../models/anime.dart';
 import '../models/anime_meta.dart';
 import '../services/library_controller.dart';
 import '../services/backdrop_service.dart';
+import '../services/capture_gallery.dart';
 import '../services/metadata_service.dart';
 import '../services/scanner.dart';
 import '../widgets/poster_image.dart';
@@ -33,12 +34,105 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _showOriginal = false;
   bool _immersiveBackground = true;
 
+  // V26_GALLERY: les images sont conservees hors des fichiers video.
+  List<String> _gallery = [];
+  int _galleryIndex = 0;
+  Timer? _slideshowTimer;
+
+  Future<void> _reloadGallery() async {
+    final files = await CaptureGallery.list(anime);
+    if (!mounted) return;
+    setState(() {
+      _gallery = files;
+      if (_galleryIndex >= files.length) _galleryIndex = 0;
+    });
+    _startSlideshow();
+  }
+
+  void _startSlideshow() {
+    _slideshowTimer?.cancel();
+    if (!anime.slideshowEnabled || _gallery.length < 2) return;
+    _slideshowTimer = Timer.periodic(
+      Duration(seconds: anime.slideshowSeconds.clamp(3, 60).toInt()), (_) {
+        if (mounted && _gallery.length > 1) {
+          setState(() => _galleryIndex = (_galleryIndex + 1) % _gallery.length);
+        }
+      });
+  }
+
+  Future<void> _galleryOptions() async {
+    await _reloadGallery();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context, backgroundColor: Palette.surface,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, redraw) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * .82),
+          child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
+            const Text('Galerie et diaporama', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('${_gallery.length} image(s) sauvegardee(s)'),
+            SwitchListTile(
+              title: const Text('Activer le diaporama'),
+              value: anime.slideshowEnabled,
+              onChanged: _gallery.length < 2 ? null : (v) async {
+                anime.slideshowEnabled = v;
+                await library.save();
+                if (!ctx.mounted) return;
+                redraw(() {});
+                _startSlideshow();
+              },
+            ),
+            ListTile(
+              title: const Text('Duree de chaque image'),
+              subtitle: Text('${anime.slideshowSeconds} secondes'),
+            ),
+            Slider(value: anime.slideshowSeconds.toDouble(), min: 3, max: 30,
+              divisions: 27,
+              onChanged: (v) => redraw(() => anime.slideshowSeconds = v.round()),
+              onChangeEnd: (v) async {
+                await library.save();
+                _startSlideshow();
+              }),
+            if (_gallery.isNotEmpty) ...[
+              const Text('Choisir une image principale :'),
+              for (final path in _gallery)
+                ListTile(
+                  leading: Image.file(File(path), width: 80, height: 46, fit: BoxFit.cover),
+                  title: Text(p.basename(path), maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                  onTap: () async {
+                    anime.backdropLocalPath = path;
+                    anime.backdropManual = true;
+                    await library.save();
+                    if (!mounted) return;
+                    setState(() {});
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                ),
+            ],
+            TextButton(onPressed: () => Navigator.pop(ctx),
+              child: const Text('Fermer')),
+          ]),
+        ),
+      )),
+    );
+  }
+
   Anime get anime => widget.anime;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadBackdrop());
+    unawaited(_reloadGallery());
+  }
+
+  @override
+  void dispose() {
+    _slideshowTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadBackdrop({bool force = false}) async {
@@ -431,7 +525,8 @@ class _DetailScreenState extends State<DetailScreen> {
 
   Widget _backgroundArt() {
     final position = Alignment(anime.backdropAlignX, anime.backdropAlignY);
-    final local = anime.backdropLocalPath;
+    final local = anime.slideshowEnabled && _gallery.isNotEmpty
+        ? _gallery[_galleryIndex] : anime.backdropLocalPath;
     Widget image;
     if (local != null && File(local).existsSync()) {
       image = Image.file(File(local), fit: BoxFit.cover,
@@ -512,7 +607,7 @@ class _DetailScreenState extends State<DetailScreen> {
           startAt: at,
         ),
       ),
-    );
+    ).then((_) { if (mounted) unawaited(_reloadGallery()); });
   }
 
   /// Regroupe les episodes par saison, les bonus a part.
@@ -744,6 +839,7 @@ class _DetailScreenState extends State<DetailScreen> {
         setState(() => _immersiveBackground = !_immersiveBackground); break;
       case 'refresh': await _loadBackdrop(force: true); break;
       case 'choose': await _chooseBackdrop(); break;
+      case 'gallery': await _galleryOptions(); break;
       case 'import_local': await _importLocalBackdrop(); break;
       case 'remove_local': await _removeLocalBackdrop(); break;
       case 'crop':
@@ -822,6 +918,9 @@ class _DetailScreenState extends State<DetailScreen> {
             PopupMenuItem(value: 'choose', child: ListTile(
               dense: true, leading: Icon(Icons.collections_outlined),
               title: Text('Choisir le panorama'))),
+            PopupMenuItem(value: 'gallery', child: ListTile(
+              dense: true, leading: Icon(Icons.photo_library_outlined),
+              title: Text('Galerie et diaporama'))),
             PopupMenuItem(value: 'import_local', child: ListTile(
               dense: true, leading: Icon(Icons.add_photo_alternate_outlined),
               title: Text('Importer un panorama du disque'))),
