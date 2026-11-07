@@ -85,6 +85,13 @@ def patch_manifest():
             print("ERREUR : balise <application> introuvable dans le manifeste.")
             return False
 
+    # HTTP playback is confined to the user's trusted LAN or encrypted tailnet.
+    # Do not expose the embedded server to a public port.
+    if 'android:usesCleartextTraffic=' not in content:
+        content = re.sub(r'<application',
+                         '<application\n        android:usesCleartextTraffic="true"',
+                         content, count=1)
+
     if "requestLegacyExternalStorage" not in content:
         content = re.sub(
             r"<application",

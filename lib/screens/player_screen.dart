@@ -88,7 +88,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _player.open(
       Playlist(
-        widget.episodes.map((e) => Media(Uri.file(e.path).toString())).toList(),
+        widget.episodes.map((e) => Media(e.path.startsWith('http://') || e.path.startsWith('https://')
+          ? e.path : Uri.file(e.path).toString())).toList(),
         index: widget.startIndex,
       ),
     );

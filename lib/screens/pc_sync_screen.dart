@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../main.dart';
 import '../services/library_controller.dart';
+import 'remote_episodes_screen.dart';
 
 /// Windows: launches the bundled Python companion. Android: LAN catalogue and
 /// conservative progress import. No media content or PC file paths cross LAN.
@@ -176,7 +177,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
         const SizedBox(height: 12),
         Text(windows
           ? 'Démarre le serveur sur ton PC, puis saisis les informations affichées dans l’APK Android. Le serveur s’arrête quand tu quittes cet écran.'
-          : 'Le PC et le téléphone doivent être sur le même réseau local. Les vidéos restent sur le PC.',
+          : 'Connecte les deux appareils au même Wi-Fi ou à ton réseau privé Tailscale. Les vidéos restent sur le PC.',
           style: TextStyle(color: Palette.muted)),
         const SizedBox(height: 20),
         if (windows) ...[
@@ -212,6 +213,14 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
             ..._remote.take(300).map((a) => ListTile(
               title: Text('${a['title'] ?? ''}'),
               subtitle: Text('${a['episodeCount'] ?? 0} épisodes · ${a['watchedCount'] ?? 0} vus sur le PC'),
+              trailing: const Icon(Icons.play_circle_outline),
+              onTap: a['id'] is int ? () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => RemoteEpisodesScreen(
+                  host: _address.text.trim(),
+                  pairCode: _code.text.trim().toUpperCase(),
+                  seriesId: a['id'] as int,
+                  seriesTitle: '${a['title'] ?? ''}',
+                ))) : null,
             )),
             if (_remote.length > 300)
               Text('${_remote.length - 300} autres séries non affichées dans cet aperçu.'),
