@@ -565,50 +565,72 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // lorsque la video est en pause / plein ecran.
   bool _captureBusy = false;
 
+  // V31: extraction a la position du lecteur, avec ffmpeg fourni par le build.
+  // Pour un fichier Windows local, ne jamais revenir silencieusement au
+  // screenshot Media Kit : il peut provenir d'une autre image en pause.
   Future<Uint8List?> _captureExactFrame(Episode episode) async {
     if (!Platform.isWindows || episode.path.startsWith('http://') ||
-        episode.path.startsWith('https://') || !File(episode.path).existsSync()) {
-      return null;
+        episode.path.startsWith('https://')) return null;
+    if (!File(episode.path).existsSync()) {
+      throw StateError('Fichier video introuvable : capture annulee.');
     }
-    // FFmpeg facultatif dans le PATH ou a cote de l'application.
-    final alongside = File(p.join(Platform.resolvedExecutable == ''
-        ? '' : p.dirname(Platform.resolvedExecutable), 'ffmpeg.exe'));
-    final executable = alongside.existsSync() ? alongside.path : 'ffmpeg';
-    final position = _position.inMilliseconds.clamp(0, 2147483647).toInt();
-    final time = (position / 1000.0).toStringAsFixed(3);
-    try {
-      // -ss apres -i : seek precis, non keyframe seulement.
-      final result = await Process.run(executable, [
-        '-hide_banner', '-loglevel', 'error', '-nostdin',
-        '-i', episode.path, '-ss', time,
-        '-map', '0:v:0', '-frames:v', '1', '-an', '-sn',
-        '-f', 'image2pipe', '-vcodec', 'png', 'pipe:1',
-      ], stdoutEncoding: null).timeout(const Duration(seconds: 25));
-      if (result.exitCode == 0 && result.stdout is Uint8List) {
-        final data = result.stdout as Uint8List;
-        if (data.length > 1024) return data;
-      }
-    } catch (_) {
-      // Absence de FFmpeg : Media Kit reste disponible en secours.
+    final alongside = File(p.join(p.dirname(Platform.resolvedExecutable), 'ffmpeg.exe'));
+    if (!alongside.existsSync()) {
+      throw StateError('FFmpeg absent de l\'installation : capture annulee. Reinstalle la derniere version Windows.');
     }
-    return null;
+    // Utiliser la position exposee par le player au moment exact du raccourci,
+    // et non le dernier callback du flux (qui peut dater de plusieurs secondes).
+    final ms = _player.state.position.inMilliseconds.clamp(0, 2147483647).toInt();
+    final time = (ms / 1000.0).toStringAsFixed(3);
+    final result = await Process.run(alongside.path, [
+      '-hide_banner', '-loglevel', 'error', '-nostdin',
+      '-accurate_seek', '-ss', time, '-i', episode.path,
+      '-map', '0:v:0', '-frames:v', '1', '-an', '-sn',
+      '-f', 'image2pipe', '-vcodec', 'png', 'pipe:1',
+    ], stdoutEncoding: null).timeout(const Duration(seconds: 30));
+    if (result.exitCode != 0 || result.stdout is! Uint8List ||
+        (result.stdout as Uint8List).length < 1024) {
+      throw StateError('Extraction a ${time}s impossible (FFmpeg ${result.exitCode}). Aucune mauvaise image enregistree.');
+    }
+    return result.stdout as Uint8List;
+  }
+
+  OverlayEntry? _captureOverlay;
+  Timer? _captureOverlayTimer;
+
+  void _clearCaptureOverlay() {
+    _captureOverlayTimer?.cancel();
+    _captureOverlayTimer = null;
+    _captureOverlay?.remove();
+    _captureOverlay?.dispose();
+    _captureOverlay = null;
   }
 
   void _confirmCapture(Uint8List bytes, String label, {required bool exact}) {
     if (!mounted) return;
     unawaited(SystemSound.play(SystemSoundType.click));
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(SnackBar(
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 5),
-      content: Row(children: [
-        Image.memory(bytes, width: 104, height: 59, fit: BoxFit.cover),
-        const SizedBox(width: 12),
-        Expanded(child: Text(exact ? label :
-            '$label\nCapture Media Kit : verifie l\'apercu si la video etait en pause.')),
-      ]),
-    ));
+    _clearCaptureOverlay();
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay != null) {
+      _captureOverlay = OverlayEntry(builder: (ctx) => Positioned(
+        top: MediaQuery.paddingOf(ctx).top + 24, right: 20,
+        child: Material(color: Colors.transparent, child: Container(
+          constraints: const BoxConstraints(maxWidth: 380),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color(0xED10151D),
+            border: Border.all(color: const Color(0xFFF3BD69), width: 2),
+            borderRadius: BorderRadius.circular(12)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Image.memory(bytes, width: 115, height: 65, fit: BoxFit.contain),
+            const SizedBox(width: 10),
+            Flexible(child: Text(label, style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold))),
+          ]),
+        )),
+      ));
+      overlay.insert(_captureOverlay!);
+      _captureOverlayTimer = Timer(const Duration(seconds: 5), _clearCaptureOverlay);
+    }
     _flash(label);
   }
 
@@ -619,6 +641,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     try {
       final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
       final exact = await _captureExactFrame(episode);
+      // Sur Windows local FFmpeg est obligatoire. Les captures Media Kit
+      // restent disponibles pour Android et les flux distants.
       final bytes = exact ?? await _player.screenshot();
       if (bytes == null || bytes.length < 1024) {
         if (mounted) _flash('Capture impossible pour cette video.');
@@ -637,7 +661,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ? 'F3 : panorama principal enregistre.'
           : 'F2 : capture enregistree.', exact: exact != null);
     } catch (e) {
-      if (mounted) _flash('Capture impossible : $e');
+      if (mounted) {
+        _flash('Capture impossible : $e');
+        final messenger = ScaffoldMessenger.maybeOf(context);
+        messenger?.showSnackBar(SnackBar(
+          duration: const Duration(seconds: 6),
+          content: Text('F2 / F3 : $e'),
+        ));
+      }
     } finally {
       _captureBusy = false;
     }
@@ -662,6 +693,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_captureFullscreenKey);
+    _clearCaptureOverlay();
     _autoSave?.cancel();
     _noticeTimer?.cancel();
     _sleepTick?.cancel();

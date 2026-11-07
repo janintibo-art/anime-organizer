@@ -6,6 +6,7 @@ $files = @(
   "$release/anime_organizer.exe",
   "$release/AnimeOrganizerSyncServer.exe",
   "$release/AnimeOrganizerCreditsDetector.exe",
+  "$release/ffmpeg.exe",
   'AnimeOrganizer-Windows-portable.zip'
 )
 $installers = @(Get-ChildItem -Path 'dist' -Filter 'AnimeOrganizer-Setup-*.exe' -File -ErrorAction Stop)

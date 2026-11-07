@@ -138,6 +138,29 @@ jobs:
           Copy-Item dist/AnimeOrganizerCreditsDetector.exe build/windows/x64/runner/Release/AnimeOrganizerCreditsDetector.exe -Force
           if (-not (Test-Path build/windows/x64/runner/Release/AnimeOrganizerCreditsDetector.exe)) { throw 'Analyseur absent' }
 
+      # V31: ffmpeg est embarque dans la version Windows, pas suppose installe.
+      # Le fichier extrait est le vrai executable, pas le shim Chocolatey.
+      - name: Embarquer FFmpeg pour les captures F2 F3 exactes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco install ffmpeg -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Installation FFmpeg echouee' }
+          $roots = @(
+            "$env:ChocolateyInstall\lib\ffmpeg",
+            'C:\tools\ffmpeg',
+            'C:\ProgramData\chocolatey\lib\ffmpeg'
+          ) | Where-Object { Test-Path $_ } | Select-Object -Unique
+          $candidates = @($roots | ForEach-Object {
+            Get-ChildItem -LiteralPath $_ -Filter ffmpeg.exe -File -Recurse -ErrorAction SilentlyContinue
+          } | Where-Object { $_.Length -gt 1000000 } | Sort-Object Length -Descending)
+          if ($candidates.Count -eq 0) { throw 'Vrai ffmpeg.exe introuvable apres installation' }
+          $dest = 'build/windows/x64/runner/Release/ffmpeg.exe'
+          Copy-Item -LiteralPath $candidates[0].FullName -Destination $dest -Force
+          & $dest -version
+          if ($LASTEXITCODE -ne 0) { throw 'FFmpeg embarque non executable' }
+          Get-FileHash -Algorithm SHA256 $dest | Format-List
+
       - name: Compresser l'application
         shell: pwsh
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath AnimeOrganizer-Windows-portable.zip
