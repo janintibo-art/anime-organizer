@@ -86,6 +86,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+    // Capture F2/F3 même lorsque les contrôles plein écran prennent le focus.
+    HardwareKeyboard.instance.addHandler(_captureFullscreenKey);
     _index = widget.startIndex;
 
     // Plein écran automatique : le lecteur prend tout l'espace disponible.
@@ -607,6 +609,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_captureFullscreenKey);
     _autoSave?.cancel();
     _noticeTimer?.cancel();
     _sleepTick?.cancel();
@@ -794,13 +797,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _player.setRate(rate);
   }
 
+  // V28_HOTFIX_FULLSCREEN_KEYS: écouteur clavier global de la fenêtre Flutter.
+  // Media Kit utilise ses propres commandes en plein écran : le KeyboardListener
+  // de la page ne reçoit donc pas toujours les touches F2 et F3.
+  bool _captureFullscreenKey(KeyEvent event) {
+    if (event is! KeyDownEvent || !Platform.isWindows || !mounted) return false;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.f2) {
+      unawaited(_captureForGallery());
+      return true;
+    }
+    if (key == LogicalKeyboardKey.f3) {
+      unawaited(_captureForGallery(useAsPanorama: true));
+      return true;
+    }
+    return false;
+  }
+
   /// Raccourcis clavier, surtout utiles sous Windows.
   void _onKey(KeyEvent event) {
     if (event is! KeyDownEvent) return;
     final key = event.logicalKey;
     // F2: raccourci Windows pour capturer directement la video.
     if (key == LogicalKeyboardKey.f2) {
-      _captureForGallery();
+      unawaited(_captureForGallery());
+    } else if (key == LogicalKeyboardKey.f3) {
+      unawaited(_captureForGallery(useAsPanorama: true));
     } else if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
       _player.playOrPause();
     } else if (key == LogicalKeyboardKey.arrowRight) {

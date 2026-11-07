@@ -70,6 +70,7 @@ class _DetailScreenState extends State<DetailScreen> {
       });
   }
 
+  // V28_HOTFIX_GALLERY_PARENS: fermeture du widget Expanded corrigée.
   Future<void> _galleryOptions() async {
     await _reloadGallery();
     if (!mounted) return;
@@ -146,7 +147,7 @@ class _DetailScreenState extends State<DetailScreen> {
                           },
                           child: SizedBox(width: double.infinity,
                             child: Image.file(File(path), fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined))))),
+                              errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined)))))),
                         Padding(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           child: Text(p.basename(path), maxLines: 1,
                             overflow: TextOverflow.ellipsis,
