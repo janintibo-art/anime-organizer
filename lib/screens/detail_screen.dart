@@ -547,7 +547,6 @@ class _DetailScreenState extends State<DetailScreen> {
                         _genres(),
                       ],
                       _titleVariants(),
-                      _healthCard(),
                       const SizedBox(height: 18),
                       SelectableText(
                         synopsis == null || synopsis.isEmpty
@@ -555,85 +554,6 @@ class _DetailScreenState extends State<DetailScreen> {
                             : synopsis,
                         style: TextStyle(
                             height: 1.55, fontSize: 14.5, color: Palette.text),
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: _working ? null : _translate,
-                            icon: const Icon(Icons.translate, size: 18),
-                            label: const Text('Traduire'),
-                          ),
-                          if (anime.synopsisTranslated != null)
-                            TextButton(
-                              onPressed: () =>
-                                  setState(() => _showOriginal = !_showOriginal),
-                              child: Text(
-                                _showOriginal
-                                    ? 'Voir la traduction'
-                                    : 'Voir l\'original',
-                                style: TextStyle(color: Palette.kin),
-                              ),
-                            ),
-                          OutlinedButton.icon(
-                            onPressed: () => setState(() =>
-                                _immersiveBackground = !_immersiveBackground),
-                            icon: Icon(_immersiveBackground
-                                ? Icons.wallpaper_outlined : Icons.image_outlined,
-                                size: 18),
-                            label: Text(_immersiveBackground
-                                ? 'Fond classique' : 'Image plein écran'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _working ? null : () => _loadBackdrop(force: true),
-                            icon: const Icon(Icons.landscape_outlined, size: 18),
-                            label: const Text('Actualiser le panorama'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: anime.backdropUrl == null ? null : _adjustBackdrop,
-                            icon: const Icon(Icons.crop_free, size: 18),
-                            label: const Text('Ajuster le cadrage'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _working ? null : _chooseBackdrop,
-                            icon: const Icon(Icons.collections_outlined, size: 18),
-                            label: const Text('Choisir le panorama'),
-                          ),
-                          PopupMenuButton<String>(
-                            tooltip: 'Catégorie',
-                            onSelected: (value) async {
-                              anime.category = value;
-                              await library.save();
-                              library.refresh();
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(value: 'anime', child: Text('Animé japonais')),
-                              PopupMenuItem(value: 'western', child: Text('Dessin animé')),
-                              PopupMenuItem(value: 'adult', child: Text('Animation adulte')),
-                              PopupMenuItem(value: 'other', child: Text('Autre animation')),
-                            ],
-                            child: Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(Icons.category_outlined, size: 18, color: Palette.kin),
-                                const SizedBox(width: 6),
-                                Text('Catégorie', style: TextStyle(color: Palette.text)),
-                              ]),
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _working ? null : _searchAgain,
-                            icon: const Icon(Icons.search, size: 18),
-                            label: const Text('Corriger la fiche'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _working ? null : _askAi,
-                            icon: const Icon(Icons.auto_awesome, size: 18),
-                            label: const Text('Identifier avec l\'IA'),
-                          ),
-                        ],
                       ),
                       const SizedBox(height: 24),
                       Row(
@@ -704,6 +624,76 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  Future<void> _detailMenuAction(String action) async {
+    if (_working && !['health', 'titles', 'original', 'background'].contains(action)) {
+      return;
+    }
+    switch (action) {
+      case 'health':
+        final issues = anime.issues;
+        final twins = library.duplicatesOf(anime);
+        await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+          backgroundColor: Palette.surface,
+          title: const Text('Etat de la collection'),
+          content: SizedBox(
+            width: 570,
+            child: SingleChildScrollView(child:
+              issues.isEmpty && twins.isEmpty
+                ? const Text('Aucune anomalie detectee dans cette collection.')
+                : _healthCard()),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fermer'))],
+        ));
+        break;
+      case 'titles':
+        await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+          backgroundColor: Palette.surface,
+          title: const Text('Titres et langues'),
+          content: SingleChildScrollView(child: SizedBox(
+            width: 540, child: _titleVariants())),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fermer'))],
+        ));
+        break;
+      case 'translate': await _translate(); break;
+      case 'original': setState(() => _showOriginal = !_showOriginal); break;
+      case 'background':
+        setState(() => _immersiveBackground = !_immersiveBackground); break;
+      case 'refresh': await _loadBackdrop(force: true); break;
+      case 'choose': await _chooseBackdrop(); break;
+      case 'crop':
+        if (anime.backdropUrl != null) await _adjustBackdrop();
+        break;
+      case 'correct': await _searchAgain(); break;
+      case 'ai': await _askAi(); break;
+      case 'category':
+        if (!mounted) return;
+        final chosen = await showModalBottomSheet<String>(
+          context: context,
+          backgroundColor: Palette.surface,
+          builder: (ctx) => SafeArea(child: Column(
+            mainAxisSize: MainAxisSize.min, children: [
+              ListTile(title: const Text('Anime japonais'),
+                onTap: () => Navigator.pop(ctx, 'anime')),
+              ListTile(title: const Text('Dessin anime'),
+                onTap: () => Navigator.pop(ctx, 'western')),
+              ListTile(title: const Text('Animation adulte'),
+                onTap: () => Navigator.pop(ctx, 'adult')),
+              ListTile(title: const Text('Autre animation'),
+                onTap: () => Navigator.pop(ctx, 'other')),
+            ],
+          )),
+        );
+        if (chosen != null) {
+          anime.category = chosen;
+          await library.save();
+          library.refresh();
+        }
+        break;
+    }
+  }
+
   // ---------------------------------------------------------------- bandeau
 
   // V20_IMMERSIVE : le panorama unique est celui du fond de la fiche.
@@ -719,6 +709,49 @@ class _DetailScreenState extends State<DetailScreen> {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
       actions: [
+        // V21_MENU_IMMERSIF: les reglages occasionnels quittent le panorama.
+        PopupMenuButton<String>(
+          tooltip: 'Informations et options de la fiche',
+          icon: const Icon(Icons.more_vert),
+          onSelected: _detailMenuAction,
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'health', child: ListTile(
+              dense: true, leading: Icon(Icons.fact_check_outlined),
+              title: Text('Etat de la collection'))),
+            PopupMenuItem(value: 'titles', child: ListTile(
+              dense: true, leading: Icon(Icons.translate_outlined),
+              title: Text('Titres et langues'))),
+            PopupMenuDivider(),
+            PopupMenuItem(value: 'translate', child: ListTile(
+              dense: true, leading: Icon(Icons.translate),
+              title: Text('Traduire la description'))),
+            PopupMenuItem(value: 'original', child: ListTile(
+              dense: true, leading: Icon(Icons.menu_book_outlined),
+              title: Text('Voir original / traduction'))),
+            PopupMenuItem(value: 'background', child: ListTile(
+              dense: true, leading: Icon(Icons.wallpaper_outlined),
+              title: Text('Changer le mode de fond'))),
+            PopupMenuItem(value: 'refresh', child: ListTile(
+              dense: true, leading: Icon(Icons.landscape_outlined),
+              title: Text('Actualiser le panorama'))),
+            PopupMenuItem(value: 'choose', child: ListTile(
+              dense: true, leading: Icon(Icons.collections_outlined),
+              title: Text('Choisir le panorama'))),
+            PopupMenuItem(value: 'crop', child: ListTile(
+              dense: true, leading: Icon(Icons.crop_free),
+              title: Text('Ajuster le cadrage'))),
+            PopupMenuDivider(),
+            PopupMenuItem(value: 'category', child: ListTile(
+              dense: true, leading: Icon(Icons.category_outlined),
+              title: Text('Changer la categorie'))),
+            PopupMenuItem(value: 'correct', child: ListTile(
+              dense: true, leading: Icon(Icons.search),
+              title: Text('Corriger la fiche'))),
+            PopupMenuItem(value: 'ai', child: ListTile(
+              dense: true, leading: Icon(Icons.auto_awesome),
+              title: Text('Identifier avec l IA'))),
+          ],
+        ),
         IconButton(
           tooltip: 'Favori',
           onPressed: () => library.toggleFavorite(anime),
