@@ -10,6 +10,7 @@ import '../models/anime_meta.dart';
 import '../services/library_controller.dart';
 import '../services/backdrop_service.dart';
 import '../services/metadata_service.dart';
+import '../services/scanner.dart';
 import '../widgets/poster_image.dart';
 import 'genre_links.dart';
 import 'player_screen.dart';
@@ -200,7 +201,9 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Future<void> _searchAgain() async {
-    final controller = TextEditingController(text: anime.folderTitle);
+    final suggested = Scanner.titleFromFiles(anime.episodes);
+    final controller = TextEditingController(
+        text: suggested ?? anime.folderTitle);
     final query = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -224,13 +227,27 @@ class _DetailScreenState extends State<DetailScreen> {
     if (query == null || query.isEmpty) return;
 
     setState(() => _working = true);
-    final results = await MetadataService.searchMany(
+    // Si la catégorie a été mal détectée, la correction doit aussi
+    // proposer les résultats occidentaux (TMDB + TVmaze).
+    final western = anime.category == 'western' || anime.category == 'adult';
+    final primary = await MetadataService.searchMany(
       query,
-      source: (anime.category == 'western' || anime.category == 'adult')
-          ? (library.settings.tmdbKey.trim().isEmpty ? 'tvmaze' : 'tmdb')
-          : library.settings.metaSource,
+      source: western ? 'western' : library.settings.metaSource,
       tmdbKey: library.settings.tmdbKey,
     );
+    final alternatives = western
+        ? <AnimeMeta>[]
+        : await MetadataService.searchMany(query, source: 'western',
+            tmdbKey: library.settings.tmdbKey);
+    final found = <AnimeMeta>[];
+    final seen = <String>{};
+    for (final result in [...primary, ...alternatives]) {
+      final key = result.source + ':' + (result.sourceId?.toString() ?? result.title);
+      if (seen.add(key)) found.add(result);
+    }
+    found.sort((a, b) => MetadataService.similarity(query, b.title)
+        .compareTo(MetadataService.similarity(query, a.title)));
+    final results = found.take(20).toList();
     if (!mounted) return;
     setState(() => _working = false);
 

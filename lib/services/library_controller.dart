@@ -434,9 +434,7 @@ class LibraryController extends ChangeNotifier {
             (i + 1) / suspicious.length);
         final category = _guessCategory(file);
         final isWestern = category == 'western' || category == 'adult';
-        final source = isWestern
-            ? (settings.tmdbKey.trim().isEmpty ? 'tvmaze' : 'tmdb')
-            : settings.metaSource;
+        final source = isWestern ? 'western' : settings.metaSource;
         final match = await MetadataService.smartSearch(file,
             source: source, tmdbKey: settings.tmdbKey,
             episodeCount: anime.episodes.where((e) => !e.bonus).length);
@@ -488,7 +486,7 @@ class LibraryController extends ChangeNotifier {
     // TVmaze fournit une recherche sans cle lorsque TMDB n'est pas configure.
     final isWestern = anime.category == 'western' || anime.category == 'adult';
     final preferredSource = isWestern
-        ? (settings.tmdbKey.trim().isNotEmpty ? 'tmdb' : 'tvmaze')
+        ? 'western'
         : settings.metaSource;
     // Si le nom des videos est explicite, il l'emporte sur un dossier
     // trompeur (sauf correction manuelle deja validee).
@@ -554,7 +552,8 @@ class LibraryController extends ChangeNotifier {
       if (english != null && english.trim().isNotEmpty) {
         meta = await MetadataService.smartSearch(english,
             source: preferredSource,
-            episodeCount: anime.episodes.where((e) => !e.bonus).length);
+            episodeCount: anime.episodes.where((e) => !e.bonus).length,
+            tmdbKey: settings.tmdbKey);
       }
     }
 
@@ -613,6 +612,8 @@ class LibraryController extends ChangeNotifier {
     anime.malId = meta.sourceId;
     anime.metaSource = meta.source;
     anime.apiTitle = meta.title;
+    // Une fiche corrigée ne doit pas conserver un ancien titre français.
+    anime.frenchTitle = null;
     anime.nativeTitle = meta.titleNative;
     anime.romajiTitle = meta.titleRomaji;
     anime.imageUrl = meta.imageUrl;

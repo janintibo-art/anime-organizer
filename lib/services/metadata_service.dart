@@ -195,6 +195,22 @@ class MetadataService {
         return TmdbApi.search(title, tmdbKey, limit: limit);
       case 'tvmaze':
         return TvmazeApi.search(title, limit: limit);
+      case 'western':
+        // TVmaze sans clé + TMDB avec clé : deux chances de trouver
+        // les séries animées occidentales, sans doublons.
+        final tv = await TvmazeApi.search(title, limit: limit);
+        if (tmdbKey.trim().isEmpty) return tv;
+        final tmdb = await TmdbApi.search(title, tmdbKey, limit: limit);
+        final seen = <String>{};
+        final merged = <AnimeMeta>[];
+        for (final item in [...tmdb, ...tv]) {
+          final key = stripAccents(item.title)
+              .replaceAll(RegExp(r'[^a-z0-9]'), '');
+          if (seen.add(key)) merged.add(item);
+        }
+        merged.sort((a, b) => similarity(title, b.title)
+            .compareTo(similarity(title, a.title)));
+        return merged.take(limit).toList();
       default:
         // Trois sources d'affilee : si AniList est coupe et MyAnimeList
         // surcharge, Kitsu prend le relais.
