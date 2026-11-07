@@ -122,6 +122,25 @@ class Anime {
   /// anime | western | adult | other. Anciennes fiches = anime.
   String category;
 
+  // V18_CREDITS: local credit markers, never change the source video.
+  // Keys: s:<season> for the whole season, e:<video path> for an episode.
+  // Values in milliseconds: introEnd and outroStart.
+  Map<String, Map<String, int>> creditMarkers;
+
+  Map<String, int>? creditsFor(Episode episode) =>
+      creditMarkers['e:${episode.path}'] ??
+      creditMarkers['s:${episode.season ?? 1}'];
+
+  void setCreditMarker(Episode episode, bool seasonWide,
+      String marker, int milliseconds) {
+    final key = seasonWide ? 's:${episode.season ?? 1}' : 'e:${episode.path}';
+    creditMarkers.putIfAbsent(key, () => <String, int>{})[marker] = milliseconds;
+  }
+
+  void clearCreditMarkers(Episode episode, bool seasonWide) {
+    creditMarkers.remove(seasonWide ? 's:${episode.season ?? 1}' : 'e:${episode.path}');
+  }
+
   /// Chemins des episodes deja regardes.
   List<String> watchedPaths;
 
@@ -167,13 +186,15 @@ class Anime {
     this.metaFailCount = 0,
     this.favorite = false,
     this.category = 'anime',
+    Map<String, Map<String, int>>? creditMarkers,
     List<String>? watchedPaths,
     Map<String, bool>? audioFr,
     this.lastEpisodePath,
     this.lastPositionMs = 0,
     this.lastPlayedAtMs,
     List<Episode>? episodes,
-  })  : genres = genres ?? <String>[],
+  })  : creditMarkers = creditMarkers ?? <String, Map<String, int>>{},
+        genres = genres ?? <String>[],
         watchedPaths = watchedPaths ?? <String>[],
         audioFr = audioFr ?? <String, bool>{},
         episodes = episodes ?? <Episode>[];
@@ -363,6 +384,7 @@ class Anime {
         'metaFailCount': metaFailCount,
         'favorite': favorite,
         'category': category,
+        'creditMarkers': creditMarkers,
         'watchedPaths': watchedPaths,
         'audioFr': audioFr,
         'lastEpisodePath': lastEpisodePath,
@@ -401,6 +423,9 @@ class Anime {
         metaFailCount: j['metaFailCount'] as int? ?? 0,
         favorite: j['favorite'] as bool? ?? false,
         category: j['category'] as String? ?? 'anime',
+        creditMarkers: (j['creditMarkers'] as Map?)?.map((key, value) =>
+            MapEntry(key.toString(), (value as Map).map((k, v) =>
+                MapEntry(k.toString(), (v as num).toInt())))),
         watchedPaths:
             (j['watchedPaths'] as List?)?.map((e) => e.toString()).toList(),
         audioFr: (j['audioFr'] as Map?)?.map(

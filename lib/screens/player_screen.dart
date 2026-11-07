@@ -65,6 +65,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _sleepTick;
   DateTime? _sleepAt;
   String _sleepChoice = '0';
+  // V18_CREDITS: optional marathon playback without opening/ending credits.
+  bool _skipCredits = false;
+  bool _advanceCreditsBusy = false;
+  bool _introApplied = false;
+  bool _creditScopeSeason = true;
   bool _stopAtEnd = false;
   double? _volumeAvantFondu;
   final ValueNotifier<String?> _sleepLabel = ValueNotifier(null);
@@ -105,6 +110,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _seeked = true;
         _langApplied = false;
         _subtitleSearchDone = false;
+        _introApplied = false;
+        _advanceCreditsBusy = false;
       });
       _loadExternalSubtitle();
       _loadExternalAudio();
@@ -114,6 +121,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _subs.add(_player.stream.position.listen((p) {
       _position = p;
       _checkSleep();
+      _checkCredits(p);
     }));
 
     _subs.add(_player.stream.duration.listen((d) {
@@ -156,6 +164,105 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _autoSave = Timer.periodic(const Duration(seconds: 20), (_) => _persist());
     _loadExternalSubtitle();
     _loadExternalAudio();
+    if (_skipCredits) _applyEndMode();
+  }
+
+  void _checkCredits(Duration position) {
+    if (!_skipCredits || widget.anime == null || widget.episodes.isEmpty ||
+        _stopAtEnd || _advanceCreditsBusy) return;
+    if (_index < 0 || _index >= widget.episodes.length) return;
+    final episode = widget.episodes[_index];
+    final markers = widget.anime!.creditsFor(episode);
+    if (markers == null) return;
+    final intro = markers['introEnd'];
+    final outro = markers['outroStart'];
+    final current = position.inMilliseconds;
+    // Only skip near the start. Never jump backward after seeking manually.
+    if (!_introApplied && intro != null && intro >= 1000) {
+      _introApplied = true;
+      if (current <= intro && current <= 10000 &&
+          (_duration == Duration.zero || intro < _duration.inMilliseconds - 3000)) {
+        _player.seek(Duration(milliseconds: intro));
+        return;
+      }
+    }
+    if (outro == null || outro < 1000 || current < outro) return;
+    if (_duration > Duration.zero && outro >= _duration.inMilliseconds - 2000) return;
+    _advanceCreditsBusy = true;
+    _persist(forceWatched: true);
+    if (_index < widget.episodes.length - 1) {
+      _player.next();
+    } else {
+      _player.pause();
+      _flash('Saison terminée.');
+    }
+  }
+
+  Future<void> _openCreditMarkers() async {
+    final anime = widget.anime;
+    if (anime == null || widget.episodes.isEmpty) {
+      _flash('Repères disponibles uniquement pour les vidéos locales de la bibliothèque.');
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Palette.surface,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, refresh) {
+        final episode = widget.episodes[_index];
+        final key = _creditScopeSeason ? 's:${episode.season ?? 1}' : 'e:${episode.path}';
+        final marks = anime.creditMarkers[key] ?? {};
+        String time(int? ms) {
+          if (ms == null) return 'Non défini';
+          final s = ms ~/ 1000;
+          return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+        }
+        Future<void> mark(String marker) async {
+          final ms = _position.inMilliseconds;
+          if (ms <= 0 || (marker == 'outroStart' && _duration > Duration.zero &&
+              ms >= _duration.inMilliseconds - 2000)) {
+            _flash('Position non valide pour ce repère.'); return;
+          }
+          anime.setCreditMarker(episode, _creditScopeSeason, marker, ms);
+          await library.save();
+          library.refresh();
+          if (ctx.mounted) refresh(() {});
+        }
+        return SafeArea(child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Repères de génériques', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text('Mets la vidéo en pause au bon endroit, puis enregistre le repère.',
+                style: TextStyle(color: Palette.muted)),
+              SwitchListTile(
+                title: const Text('Appliquer à toute la saison'),
+                subtitle: Text('Saison ${episode.season ?? 1}'),
+                value: _creditScopeSeason,
+                onChanged: (v) => refresh(() => _creditScopeSeason = v),
+              ),
+              Text('Fin du générique de début : ${time(marks['introEnd'])}'),
+              FilledButton.icon(onPressed: () => mark('introEnd'),
+                icon: const Icon(Icons.flag_outlined),
+                label: const Text('Marquer la fin du générique de début')),
+              const SizedBox(height: 12),
+              Text('Début du générique de fin : ${time(marks['outroStart'])}'),
+              FilledButton.icon(onPressed: () => mark('outroStart'),
+                icon: const Icon(Icons.flag_outlined),
+                label: const Text('Marquer le début du générique de fin')),
+              TextButton.icon(onPressed: () async {
+                anime.clearCreditMarkers(episode, _creditScopeSeason);
+                await library.save();
+                library.refresh();
+                if (ctx.mounted) refresh(() {});
+              }, icon: const Icon(Icons.restart_alt),
+                label: const Text('Effacer les repères de cette portée')),
+            ],
+          ),
+        ));
+      }),
+    );
   }
 
   void _flash(String message) {
@@ -540,7 +647,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Future<void> _applyEndMode() async {
     final platform = _player.platform;
     if (platform is! NativePlayer) return;
-    final stop = _stopAtEnd || !library.settings.autoNext;
+    final stop = _stopAtEnd || (!library.settings.autoNext && !_skipCredits);
     try {
       await platform.setProperty('keep-open', stop ? 'always' : 'yes');
     } catch (_) {
@@ -1005,6 +1112,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                   ? PlaylistMode.loop
                                   : PlaylistMode.none,
                         )),
+                  ),
+
+                  _optionTitle('Marathon sans génériques'),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Enchaîner sans génériques'),
+                    subtitle: const Text('Utilise les repères enregistrés. Aucun saut sans repère.'),
+                    value: _skipCredits,
+                    onChanged: (v) => update(() {
+                      _skipCredits = v;
+                      _introApplied = false;
+                      _applyEndMode();
+                    }),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () { Navigator.pop(ctx); _openCreditMarkers(); },
+                    icon: const Icon(Icons.flag_outlined),
+                    label: const Text('Définir les repères de génériques'),
                   ),
 
                   _optionTitle('À la fin de l\'épisode'),
