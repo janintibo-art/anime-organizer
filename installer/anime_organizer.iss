@@ -39,13 +39,16 @@ MinVersion=10.0
 
 OutputDir=..\dist
 OutputBaseFilename=AnimeOrganizer-Setup-{#AppVersion}
-SetupIconFile=..\windows\runner\resources\app_icon.ico
+SetupIconFile=..\installer\assets\installer_icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
 
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+; V35 Anime Neon Library : visuels natifs Inno Setup (BMP compatibles).
+WizardImageFile=..\installer\assets\wizard_side.bmp
+WizardSmallImageFile=..\installer\assets\wizard_small.bmp
 
 ; On ferme l'application si elle tourne avant de remplacer ses fichiers.
 CloseApplications=yes
