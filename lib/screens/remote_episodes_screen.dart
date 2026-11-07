@@ -24,6 +24,7 @@ class RemoteEpisodesScreen extends StatefulWidget {
 
 class _RemoteEpisodesScreenState extends State<RemoteEpisodesScreen> {
   bool _busy = true;
+  String _quality = 'direct';
   String? _error;
   List<Map<String, dynamic>> _episodes = [];
 
@@ -71,7 +72,10 @@ class _RemoteEpisodesScreenState extends State<RemoteEpisodesScreen> {
           expiry is! int || signature is! String) {
         throw Exception('Ticket de lecture invalide');
       }
-      final url = _endpoint(path, {
+      final requestedPath = _quality == 'direct'
+          ? path : path.replaceFirst('/v1/stream/', '/v1/transcode/');
+      final url = _endpoint(requestedPath, {
+        if (_quality != 'direct') 'quality': _quality,
         'expires': '$expiry', 'signature': signature,
       }).toString();
       if (!mounted) return;
@@ -95,7 +99,22 @@ class _RemoteEpisodesScreenState extends State<RemoteEpisodesScreen> {
       ? const Center(child: CircularProgressIndicator())
       : _error != null
         ? Center(child: Text(_error!))
-        : ListView.builder(
+        : Column(children: [
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(children: [
+                const Text('Qualité : '),
+                const SizedBox(width: 8),
+                Expanded(child: DropdownButton<String>(isExpanded: true,
+                  value: _quality,
+                  items: const [
+                    DropdownMenuItem(value: 'direct', child: Text('Originale (sans conversion)')),
+                    DropdownMenuItem(value: '720', child: Text('720p mobile (FFmpeg)')),
+                    DropdownMenuItem(value: '480', child: Text('480p économique (FFmpeg)')),
+                  ],
+                  onChanged: _busy ? null : (v) { if (v != null) setState(() => _quality = v); },
+                )),
+              ])),
+            Expanded(child: ListView.builder(
             itemCount: _episodes.length,
             itemBuilder: (context, i) {
               final e = _episodes[i];
@@ -109,6 +128,7 @@ class _RemoteEpisodesScreenState extends State<RemoteEpisodesScreen> {
                 subtitle: Text('Saison ${season ?? 1} · Épisode ${number ?? i + 1}'),
                 onTap: !available || _busy ? null : () => _play(e),
               );
-            }),
+            })),
+          ]),
   );
 }

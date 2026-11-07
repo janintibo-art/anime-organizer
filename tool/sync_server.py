@@ -8,7 +8,10 @@ import json
 import mimetypes
 import os
 import re
+import shutil
+import subprocess
 import secrets
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -133,6 +136,8 @@ def handler_factory(lib, token):
                 except (OSError, ValueError, TypeError, IndexError):
                     self.reply(503, {'error': 'library_unavailable'})
                 return
+            if route.startswith('/v1/transcode/'):
+                self.transcode(route, query); return
             if route.startswith('/v1/stream/'):
                 self.stream(route, query, head=False)
                 return
@@ -205,6 +210,66 @@ def handler_factory(lib, token):
                         left -= len(data)
             except (OSError, ValueError, TypeError, BrokenPipeError, ConnectionResetError):
                 # Client disconnected / file disappeared. Never leak paths.
+                pass
+
+        def transcode(self, route, query):
+            # Transcodage temps réel : ne fournit jamais le chemin du fichier.
+            # L'URL est signée et liée au même ticket que le streaming direct.
+            m = re.fullmatch(r'/v1/transcode/(\d+)/(\d+)', route)
+            if not m:
+                self.reply(404, {'error': 'not_found'}); return
+            try:
+                series, episode = int(m.group(1)), int(m.group(2))
+                expires = int(query.get('expires', ['0'])[0])
+                signature = query.get('signature', [''])[0]
+                now = int(time.time())
+                if not now <= expires <= now + TICKET_LIFETIME:
+                    self.reply(403, {'error': 'expired_ticket'}); return
+                path = video_at(lib, series, episode)
+                if path is None or not hmac.compare_digest(
+                    signature, sign(token, series, episode, expires, path)):
+                    self.reply(403, {'error': 'invalid_ticket'}); return
+                quality = query.get('quality', ['720'])[0]
+                if quality not in ('480', '720'):
+                    self.reply(400, {'error': 'invalid_quality'}); return
+                executable = Path(sys.executable).resolve().parent / 'ffmpeg.exe'
+                ffmpeg = str(executable) if executable.is_file() else shutil.which('ffmpeg')
+                if not ffmpeg:
+                    self.reply(503, {'error': 'ffmpeg_unavailable'}); return
+                # 480p/720p, débit limité. libx264 en premier, NVENC plus tard.
+                height = int(quality)
+                bitrate = '1200k' if height == 480 else '2500k'
+                maxrate = '1600k' if height == 480 else '3300k'
+                args = [ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin',
+                    '-i', str(path), '-map', '0:v:0', '-map', '0:a:0?',
+                    '-vf', f'scale=-2:min(ih\,{height})',
+                    '-c:v', 'libx264', '-preset', 'veryfast', '-b:v', bitrate,
+                    '-maxrate', maxrate, '-bufsize', maxrate,
+                    '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k',
+                    '-ac', '2', '-f', 'mpegts', 'pipe:1']
+                proc = subprocess.Popen(args, stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+                try:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'video/mp2t')
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.close_connection = True
+                    while True:
+                        chunk = proc.stdout.read(64 * 1024)
+                        if not chunk: break
+                        self.wfile.write(chunk)
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    pass
+                finally:
+                    if proc.poll() is None:
+                        proc.terminate()
+                        try: proc.wait(timeout=2)
+                        except subprocess.TimeoutExpired: proc.kill()
+                    if proc.stdout: proc.stdout.close()
+            except (ValueError, OSError, subprocess.SubprocessError):
+                # Ne jamais divulguer le chemin local dans la réponse.
                 pass
 
         def log_message(self, fmt, *args):
