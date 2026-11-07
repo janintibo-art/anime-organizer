@@ -131,6 +131,13 @@ jobs:
           Copy-Item dist/AnimeOrganizerSyncServer.exe build/windows/x64/runner/Release/AnimeOrganizerSyncServer.exe -Force
           if (-not (Test-Path build/windows/x64/runner/Release/AnimeOrganizerSyncServer.exe)) { throw 'Serveur Python absent' }
 
+      - name: Construire l'analyseur local de génériques
+        shell: pwsh
+        run: |
+          python -m PyInstaller --onefile --noconsole --clean --name AnimeOrganizerCreditsDetector tool/credits_detector.py
+          Copy-Item dist/AnimeOrganizerCreditsDetector.exe build/windows/x64/runner/Release/AnimeOrganizerCreditsDetector.exe -Force
+          if (-not (Test-Path build/windows/x64/runner/Release/AnimeOrganizerCreditsDetector.exe)) { throw 'Analyseur absent' }
+
       - name: Compresser l'application
         shell: pwsh
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath AnimeOrganizer-Windows-portable.zip

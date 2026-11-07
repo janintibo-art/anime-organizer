@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -921,6 +924,96 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   /// Panneau d'options : tout ce qui ne merite pas un bouton permanent.
+
+  // V19_CREDITS_DETECTOR: détection prudente, validation explicite.
+  Future<void> _detectCreditsAutomatically() async {
+    if (!Platform.isWindows || widget.anime == null || widget.episodes.isEmpty) {
+      _flash('La détection automatique est disponible sur Windows.');
+      return;
+    }
+    final current = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+    final season = current.season ?? 1;
+    final samples = widget.episodes.where((e) =>
+      !e.bonus && (e.season ?? 1) == season && File(e.path).existsSync())
+        .take(4).map((e) => e.path).toList();
+    if (samples.length < 3) {
+      _flash('Il faut au moins 3 épisodes locaux pour analyser cette saison.');
+      return;
+    }
+    final detector = File(p.join(p.dirname(Platform.resolvedExecutable),
+        'AnimeOrganizerCreditsDetector.exe'));
+    if (!detector.existsSync()) {
+      _flash('Analyseur absent. Réinstalle la nouvelle version Windows.');
+      return;
+    }
+    final tempDir = await getTemporaryDirectory();
+    final input = File(p.join(tempDir.path,
+        'anime_credits_${DateTime.now().microsecondsSinceEpoch}.json'));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        duration: Duration(seconds: 5),
+        content: Text('Analyse des épisodes en cours… Les vidéos restent sur le PC.')));
+    }
+    try {
+      await input.writeAsString(jsonEncode({'paths': samples}));
+      final output = await Process.run(detector.path, [input.path])
+          .timeout(const Duration(minutes: 7));
+      final data = jsonDecode(output.stdout.toString()) as Map<String, dynamic>;
+      if (!mounted) return;
+      if (data['ok'] != true) {
+        _flash('Détection indisponible : ${data['error'] ?? 'erreur inconnue'}');
+        return;
+      }
+      final marks = Map<String, dynamic>.from(data['proposals'] as Map? ?? {});
+      if (marks.isEmpty) {
+        _flash('Aucun générique commun assez fiable détecté. Repères manuels disponibles.');
+        return;
+      }
+      int? proposal(String key) {
+        final raw = marks[key];
+        if (raw is! Map) return null;
+        return raw['milliseconds'] is int ? raw['milliseconds'] as int : null;
+      }
+      String pretty(int? value) => value == null ? 'Non détecté' :
+          '${value ~/ 60000}:${((value ~/ 1000) % 60).toString().padLeft(2, '0')}';
+      final intro = proposal('introEnd');
+      final outro = proposal('outroStart');
+      final accepted = await showDialog<bool>(context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Palette.surface,
+          title: const Text('Suggestions de génériques'),
+          content: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Saison $season · ${data['analyzed']} épisodes comparés'),
+              const SizedBox(height: 12),
+              Text('Fin du générique de début : ${pretty(intro)}'),
+              Text('Début du générique de fin : ${pretty(outro)}'),
+              const SizedBox(height: 12),
+              const Text('Vérifie ces horaires. Une ouverture différente ou une scène répétée peut tromper la détection.'),
+            ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annuler')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Appliquer à la saison')),
+          ],
+        ));
+      if (accepted != true || !mounted) return;
+      final anime = widget.anime!;
+      if (intro != null) anime.setCreditMarker(current, true, 'introEnd', intro);
+      if (outro != null) anime.setCreditMarker(current, true, 'outroStart', outro);
+      await library.save();
+      library.refresh();
+      _flash('Repères proposés enregistrés pour la saison $season.');
+    } on TimeoutException {
+      if (mounted) _flash('Analyse interrompue : délai dépassé.');
+    } catch (e) {
+      if (mounted) _flash('Analyse impossible : $e');
+    } finally {
+      try { if (await input.exists()) await input.delete(); } catch (_) {}
+    }
+  }
+
   void _openOptions() {
     showModalBottomSheet<void>(
       context: context,
@@ -1131,6 +1224,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     icon: const Icon(Icons.flag_outlined),
                     label: const Text('Définir les repères de génériques'),
                   ),
+                  if (Platform.isWindows && widget.anime != null)
+                    OutlinedButton.icon(
+                      onPressed: () { Navigator.pop(ctx); _detectCreditsAutomatically(); },
+                      icon: const Icon(Icons.auto_awesome_outlined),
+                      label: const Text('Détecter automatiquement (3 épisodes minimum)'),
+                    ),
 
                   _optionTitle('À la fin de l\'épisode'),
                   _choices(
