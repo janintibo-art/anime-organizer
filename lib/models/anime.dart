@@ -99,6 +99,8 @@ class Anime {
   String? imageUrl;
   String? backdropUrl;
   // V26_SLIDESHOW: preferences sauvegardees par fiche.
+  // V28_GALLERY_ORDER : chemins de captures dans l’ordre choisi.
+  List<String> galleryOrder = [];
   bool slideshowEnabled = false;
   int slideshowSeconds = 8;
   String? backdropLocalPath; // V25: image personnelle copiee dans le stockage de l’application.
@@ -171,6 +173,7 @@ class Anime {
     this.imageUrl,
     this.backdropUrl,
     this.backdropLocalPath,
+    List<String>? galleryOrder,
     this.slideshowEnabled = false,
     this.slideshowSeconds = 8,
     this.backdropManual = false,
@@ -200,7 +203,8 @@ class Anime {
     this.lastPositionMs = 0,
     this.lastPlayedAtMs,
     List<Episode>? episodes,
-  })  : creditMarkers = creditMarkers ?? <String, Map<String, int>>{},
+  })  : galleryOrder = galleryOrder ?? <String>[],
+        creditMarkers = creditMarkers ?? <String, Map<String, int>>{},
         genres = genres ?? <String>[],
         watchedPaths = watchedPaths ?? <String>[],
         audioFr = audioFr ?? <String, bool>{},
@@ -372,6 +376,7 @@ class Anime {
         'imageUrl': imageUrl,
         'backdropUrl': backdropUrl,
         'backdropLocalPath': backdropLocalPath,
+        'galleryOrder': galleryOrder,
         'slideshowEnabled': slideshowEnabled,
         'slideshowSeconds': slideshowSeconds,
         'backdropManual': backdropManual,
@@ -414,6 +419,7 @@ class Anime {
         imageUrl: j['imageUrl'] as String?,
         backdropUrl: j['backdropUrl'] as String?,
         backdropLocalPath: j['backdropLocalPath'] as String?,
+        galleryOrder: (j['galleryOrder'] as List? ?? const []).map((x) => x.toString()).toList(),
         slideshowEnabled: j['slideshowEnabled'] as bool? ?? false,
         slideshowSeconds: (j['slideshowSeconds'] as int? ?? 8).clamp(3, 60).toInt(),
         backdropManual: j['backdropManual'] as bool? ?? false,

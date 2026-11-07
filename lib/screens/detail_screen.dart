@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:ui' as ui;
+// V28_GALLERY_VISUELLE: aperçus, ordre, suppression et ouverture du dossier.
 
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
@@ -41,6 +42,15 @@ class _DetailScreenState extends State<DetailScreen> {
 
   Future<void> _reloadGallery() async {
     final files = await CaptureGallery.list(anime);
+    final priorities = anime.galleryOrder;
+    files.sort((a, b) {
+      final ia = priorities.indexOf(a);
+      final ib = priorities.indexOf(b);
+      if (ia < 0 && ib < 0) return a.compareTo(b);
+      if (ia < 0) return 1;
+      if (ib < 0) return -1;
+      return ia.compareTo(ib);
+    });
     if (!mounted) return;
     setState(() {
       _gallery = files;
@@ -64,15 +74,29 @@ class _DetailScreenState extends State<DetailScreen> {
     await _reloadGallery();
     if (!mounted) return;
     await showModalBottomSheet<void>(
-      context: context, backgroundColor: Palette.surface,
+      context: context,
+      backgroundColor: Palette.surface,
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(builder: (ctx, redraw) => SafeArea(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * .82),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * .86),
           child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
             const Text('Galerie et diaporama', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text('${_gallery.length} image(s) sauvegardee(s)'),
+            Text('${_gallery.length} captures sauvegardées'),
+            if (Platform.isWindows)
+              Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+                onPressed: () async {
+                  try {
+                    final dir = await CaptureGallery.folder(anime);
+                    await Process.start('explorer.exe', [dir.path], mode: ProcessStartMode.detached);
+                  } catch (e) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Impossible d’ouvrir le dossier : $e')));
+                  }
+                },
+                icon: const Icon(Icons.folder_open_outlined),
+                label: const Text('Ouvrir le dossier des captures'))),
             SwitchListTile(
               title: const Text('Activer le diaporama'),
               value: anime.slideshowEnabled,
@@ -81,13 +105,12 @@ class _DetailScreenState extends State<DetailScreen> {
                 await library.save();
                 if (!ctx.mounted) return;
                 redraw(() {});
+                setState(() {});
                 _startSlideshow();
               },
             ),
-            ListTile(
-              title: const Text('Duree de chaque image'),
-              subtitle: Text('${anime.slideshowSeconds} secondes'),
-            ),
+            ListTile(title: const Text('Durée par image'),
+              subtitle: Text('${anime.slideshowSeconds} secondes')),
             Slider(value: anime.slideshowSeconds.toDouble(), min: 3, max: 30,
               divisions: 27,
               onChanged: (v) => redraw(() => anime.slideshowSeconds = v.round()),
@@ -96,21 +119,96 @@ class _DetailScreenState extends State<DetailScreen> {
                 _startSlideshow();
               }),
             if (_gallery.isNotEmpty) ...[
-              const Text('Choisir une image principale :'),
-              for (final path in _gallery)
-                ListTile(
-                  leading: Image.file(File(path), width: 80, height: 46, fit: BoxFit.cover),
-                  title: Text(p.basename(path), maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-                  onTap: () async {
-                    anime.backdropLocalPath = path;
-                    anime.backdropManual = true;
-                    await library.save();
-                    if (!mounted) return;
-                    setState(() {});
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  },
-                ),
+              const Padding(padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('Choisir le panorama, déplacer ou supprimer une capture :')),
+              LayoutBuilder(builder: (ctx, constraints) {
+                final columns = constraints.maxWidth >= 650 ? 3 :
+                    constraints.maxWidth >= 390 ? 2 : 1;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _gallery.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns, crossAxisSpacing: 10,
+                    mainAxisSpacing: 10, mainAxisExtent: 196),
+                  itemBuilder: (ctx, index) {
+                    final path = _gallery[index];
+                    return Card(clipBehavior: Clip.antiAlias,
+                      color: Palette.ink,
+                      child: Column(children: [
+                        Expanded(child: InkWell(
+                          onTap: () async {
+                            anime.backdropLocalPath = path;
+                            anime.backdropManual = true;
+                            await library.save();
+                            if (mounted) setState(() {});
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          },
+                          child: SizedBox(width: double.infinity,
+                            child: Image.file(File(path), fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined))))),
+                        Padding(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          child: Text(p.basename(path), maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11))),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                          IconButton(icon: const Icon(Icons.arrow_back, size: 18),
+                            tooltip: 'Vers la gauche', onPressed: index == 0 ? null : () async {
+                              final item = _gallery.removeAt(index);
+                              _gallery.insert(index - 1, item);
+                              anime.galleryOrder = List<String>.from(_gallery);
+                              await library.save();
+                              if (!ctx.mounted) return;
+                              redraw(() {});
+                              setState(() {});
+                            }),
+                          IconButton(icon: const Icon(Icons.arrow_forward, size: 18),
+                            tooltip: 'Vers la droite', onPressed: index == _gallery.length - 1 ? null : () async {
+                              final item = _gallery.removeAt(index);
+                              _gallery.insert(index + 1, item);
+                              anime.galleryOrder = List<String>.from(_gallery);
+                              await library.save();
+                              if (!ctx.mounted) return;
+                              redraw(() {});
+                              setState(() {});
+                            }),
+                          IconButton(icon: const Icon(Icons.delete_outline, size: 18),
+                            tooltip: 'Supprimer cette capture', onPressed: () async {
+                              final ok = await showDialog<bool>(context: ctx,
+                                builder: (dialogCtx) => AlertDialog(
+                                  title: const Text('Supprimer cette capture ?'),
+                                  content: Text(p.basename(path)), actions: [
+                                    TextButton(onPressed: () => Navigator.pop(dialogCtx, false),
+                                      child: const Text('Annuler')),
+                                    FilledButton(onPressed: () => Navigator.pop(dialogCtx, true),
+                                      child: const Text('Supprimer')),
+                                  ]));
+                              if (ok != true) return;
+                              final directory = await CaptureGallery.folder(anime);
+                              if (!p.isWithin(directory.path, path)) return;
+                              try { await File(path).delete(); } catch (e) {
+                                if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Suppression impossible : $e')));
+                                return;
+                              }
+                              if (anime.backdropLocalPath == path) {
+                                anime.backdropLocalPath = null;
+                                anime.backdropManual = false;
+                              }
+                              _gallery.remove(path);
+                              anime.galleryOrder = List<String>.from(_gallery);
+                              if (_gallery.length < 2) anime.slideshowEnabled = false;
+                              _galleryIndex = 0;
+                              await library.save();
+                              _startSlideshow();
+                              if (!ctx.mounted) return;
+                              redraw(() {});
+                              setState(() {});
+                            }),
+                        ]),
+                      ]));
+                  });
+              }),
             ],
             TextButton(onPressed: () => Navigator.pop(ctx),
               child: const Text('Fermer')),
@@ -543,7 +641,15 @@ class _DetailScreenState extends State<DetailScreen> {
     }
     return IgnorePointer(
       child: Stack(fit: StackFit.expand, children: [
-        image,
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 950),
+          switchInCurve: Curves.easeInOut,
+          switchOutCurve: Curves.easeInOut,
+          layoutBuilder: (current, previous) => Stack(fit: StackFit.expand,
+            children: [...previous, if (current != null) current]),
+          child: SizedBox.expand(key: ValueKey<String>(
+            local ?? anime.backdropUrl ?? 'fallback'), child: image),
+        ),
         DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
