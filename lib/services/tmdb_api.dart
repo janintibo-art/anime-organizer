@@ -144,7 +144,7 @@ class TmdbApi {
     final poster = item['poster_path']?.toString();
     final date = item['first_air_date']?.toString();
     final vote = (item['vote_average'] as num?)?.toDouble();
-    final genreIds = (item['genre_ids'] as List? ?? const [])
+    final List<String> genreIds = (item['genre_ids'] as List? ?? const [])
         .map((e) => _genres[e as int])
         .whereType<String>()
         .where((g) => g.isNotEmpty)
@@ -155,6 +155,7 @@ class TmdbApi {
       source: 'tmdb',
       title: name,
       titleRomaji: item['original_name']?.toString(),
+      originLanguage: item['original_language']?.toString(),
       imageUrl: poster == null || poster.isEmpty ? null : '$_imageBase$poster',
       synopsis: item['overview']?.toString(),
       genres: genreIds,
