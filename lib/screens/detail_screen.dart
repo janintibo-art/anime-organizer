@@ -685,12 +685,33 @@ class _DetailScreenState extends State<DetailScreen> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // L'image garde ses couleurs : plus d'aplat noir par-dessus.
-            PosterImage(
-              anime: anime,
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-            ),
+            // Bandeau cinema : preferer le panorama 16:9, jamais
+            // l'affiche portrait agrandie jusqu'a couper les visages.
+            if (anime.backdropUrl != null && anime.backdropUrl!.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: anime.backdropUrl!,
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                errorWidget: (_, __, ___) => Container(
+                  color: Palette.ink,
+                  alignment: Alignment.center,
+                  child: PosterImage(
+                    anime: anime,
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
+                  ),
+                ),
+              )
+            else
+              Container(
+                color: Palette.ink,
+                alignment: Alignment.center,
+                child: PosterImage(
+                  anime: anime,
+                  fit: BoxFit.contain,
+                  alignment: Alignment.center,
+                ),
+              ),
             // Voile discret en haut, juste pour detacher les boutons.
             const Positioned(
               top: 0,
