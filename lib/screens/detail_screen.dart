@@ -370,8 +370,8 @@ class _DetailScreenState extends State<DetailScreen> {
         DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [const Color(0x8C000000), Palette.ink.withOpacity(0.82),
-                   Palette.ink.withOpacity(0.93)],
+          colors: [const Color(0x77000000), Palette.ink.withOpacity(0.62),
+                   Palette.ink.withOpacity(0.88)],
           stops: const [0.0, 0.45, 1.0],
         ))),
       ]),
@@ -391,39 +391,30 @@ class _DetailScreenState extends State<DetailScreen> {
         ['日本語', anime.nativeTitle!],
     ];
     if (rows.length < 2) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.only(top: 14),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Palette.surface,
-        border: Border.all(color: Palette.line),
-        borderRadius: BorderRadius.circular(radiusMd),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final row in rows)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 3),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          collapsedBackgroundColor: Colors.transparent,
+          backgroundColor: const Color(0x6611151C),
+          iconColor: Palette.kin,
+          collapsedIconColor: Palette.kin,
+          title: Text('Titres et langues', style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600, color: Palette.kin)),
+          children: [for (final row in rows)
+            Padding(padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    width: 68,
-                    child: Text(row[0],
-                        style: TextStyle(
-                            color: Palette.muted, fontSize: 11.5)),
-                  ),
-                  Expanded(
-                    child: SelectableText(row[1],
-                        style: const TextStyle(
-                            fontSize: 13, height: 1.35)),
-                  ),
-                ],
-              ),
-            ),
-        ],
+                  SizedBox(width: 72, child: Text(row[0],
+                      style: TextStyle(color: Palette.muted, fontSize: 12))),
+                  Expanded(child: SelectableText(row[1],
+                      style: const TextStyle(fontSize: 13, height: 1.35))),
+                ])),
+          ],
+        ),
       ),
     );
   }
@@ -547,6 +538,7 @@ class _DetailScreenState extends State<DetailScreen> {
                               backgroundColor: Palette.raised,
                               color: Palette.shu),
                         ),
+                      _identityHeader(),
                       _resumeButton(),
                       const SizedBox(height: 16),
                       _badges(),
@@ -714,159 +706,68 @@ class _DetailScreenState extends State<DetailScreen> {
 
   // ---------------------------------------------------------------- bandeau
 
+  // V20_IMMERSIVE : le panorama unique est celui du fond de la fiche.
   Widget _banner() {
     return SliverAppBar(
-      expandedHeight: 320,
       pinned: true,
-      backgroundColor: Palette.ink,
+      toolbarHeight: 54,
+      backgroundColor: Palette.ink.withOpacity(0.66),
       surfaceTintColor: Colors.transparent,
+      elevation: 0,
       foregroundColor: Colors.white,
+      title: Text(anime.title, maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
       actions: [
         IconButton(
+          tooltip: 'Favori',
           onPressed: () => library.toggleFavorite(anime),
-          icon: Icon(
-            anime.favorite ? Icons.favorite : Icons.favorite_border,
-            color: anime.favorite ? Palette.sakura : Colors.white,
-          ),
+          icon: Icon(anime.favorite ? Icons.favorite : Icons.favorite_border,
+              color: anime.favorite ? Palette.sakura : Colors.white),
         ),
       ],
-      flexibleSpace: FlexibleSpaceBar(
-        collapseMode: CollapseMode.parallax,
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Bandeau cinema : preferer le panorama 16:9, jamais
-            // l'affiche portrait agrandie jusqu'a couper les visages.
-            if (anime.backdropUrl != null && anime.backdropUrl!.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: anime.backdropUrl!,
-                fit: BoxFit.cover,
-                alignment: Alignment(anime.backdropAlignX, anime.backdropAlignY),
-                errorWidget: (_, __, ___) => Container(
-                  color: Palette.ink,
-                  alignment: Alignment.center,
-                  child: PosterImage(
-                    anime: anime,
-                    fit: BoxFit.contain,
-                    alignment: Alignment.center,
-                  ),
-                ),
-              )
-            else
-              Container(
-                color: Palette.ink,
-                alignment: Alignment.center,
-                child: PosterImage(
-                  anime: anime,
-                  fit: BoxFit.contain,
-                  alignment: Alignment.center,
-                ),
-              ),
-            // Voile discret en haut, juste pour detacher les boutons.
-            const Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 110,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0xB3000000), Color(0x00000000)],
-                  ),
-                ),
-              ),
-            ),
-            // Degrade bas : le texte reste lisible sans ternir l'affiche.
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  stops: [0.0, 0.30, 0.62],
-                  colors: [
-                    Palette.ink,
-                    Color(0xE60D0B0B),
-                    Color(0x000D0B0B),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 14,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(radiusMd),
-                    child: Container(
-                      width: 84,
-                      height: 118,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0x33FFFFFF)),
-                        borderRadius: BorderRadius.circular(radiusMd),
-                      ),
-                      child: PosterImage(anime: anime, iconSize: 24),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (anime.nativeTitle != null &&
-                            anime.nativeTitle!.trim().isNotEmpty)
-                          Text(
-                            anime.nativeTitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                color: Palette.muted, fontSize: 12),
-                          ),
-                        const SizedBox(height: 3),
-                        Text(
-                          anime.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 20,
-                            height: 1.15,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.4,
-                            color: Palette.text,
-                          ),
-                        ),
-                        if (anime.progress > 0) ...[
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: LinearProgressIndicator(
-                              value: anime.progress,
-                              minHeight: 4,
-                              backgroundColor: const Color(0x55FFFFFF),
-                              color:
-                                  anime.finished ? Palette.kin : Palette.shu,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${anime.watchedCount} sur ${anime.episodes.length} épisodes vus',
-                            style: TextStyle(
-                                color: Palette.muted, fontSize: 11),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+    );
+  }
+
+  Widget _identityHeader() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(radiusMd),
+            child: SizedBox(width: 82, height: 116,
+                child: PosterImage(anime: anime, iconSize: 24)),
+          ),
+          const SizedBox(width: 15),
+          Expanded(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(anime.title, maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 25,
+                    height: 1.12, fontWeight: FontWeight.w700)),
+              if (anime.nativeTitle != null &&
+                  anime.nativeTitle!.trim().isNotEmpty &&
+                  anime.nativeTitle != anime.title) ...[
+                const SizedBox(height: 5),
+                Text(anime.nativeTitle!, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Palette.muted, fontSize: 12)),
+              ],
+              if (anime.progress > 0) ...[
+                const SizedBox(height: 10),
+                LinearProgressIndicator(value: anime.progress, minHeight: 3,
+                  backgroundColor: const Color(0x55FFFFFF), color: Palette.kin),
+                const SizedBox(height: 4),
+                Text('${anime.watchedCount} / ${anime.episodes.length} épisodes vus',
+                    style: TextStyle(color: Palette.muted, fontSize: 11)),
+              ],
+            ],
+          )),
+        ],
       ),
     );
   }
@@ -878,26 +779,21 @@ class _DetailScreenState extends State<DetailScreen> {
     final label = anime.finished
         ? 'Revoir depuis le début'
         : (at > Duration.zero
-            ? 'Reprendre l\'épisode ${index + 1}'
-            : (anime.started
-                ? 'Lire l\'épisode ${index + 1}'
-                : 'Lire le premier épisode'));
-
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        style: FilledButton.styleFrom(
-          backgroundColor: Palette.shu,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusSm),
-          ),
-        ),
+            ? "Reprendre l'épisode ${index + 1}"
+            : "Lire l'épisode ${index + 1}");
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: OutlinedButton.icon(
         onPressed: () => anime.finished ? _play(0) : _play(index, at: at),
-        icon: const Icon(Icons.play_arrow),
-        label: Text(label,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        icon: Icon(Icons.play_arrow_rounded, color: Palette.kin, size: 22),
+        label: Text(label, style: const TextStyle(
+            color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: const Color(0xB51A1C24),
+          side: const BorderSide(color: Color(0xAAE5AF6D)),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        ),
       ),
     );
   }
@@ -920,8 +816,8 @@ class _DetailScreenState extends State<DetailScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
-              color: Palette.surface,
-              border: Border.all(color: Palette.line),
+              color: const Color(0x99171D25),
+              border: Border.all(color: const Color(0x50FFFFFF)),
               borderRadius: BorderRadius.circular(radiusSm),
             ),
             child: Column(
