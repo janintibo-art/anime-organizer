@@ -188,6 +188,7 @@ class LibraryController extends ChangeNotifier {
   AppSettings settings = AppSettings();
 
   bool busy = false;
+  bool _scanQueued = false;
   String status = '';
   double progress = 0;
 
@@ -308,7 +309,11 @@ class LibraryController extends ChangeNotifier {
 
   /// Scanne les dossiers, fusionne avec l'existant, puis complete les fiches.
   Future<void> scan({bool fetchMetadata = true}) async {
-    if (busy || folders.isEmpty) return;
+    if (folders.isEmpty) return;
+    if (busy) {
+      _scanQueued = true;
+      return;
+    }
     busy = true;
     _report('Analyse des dossiers');
 
@@ -386,6 +391,12 @@ class LibraryController extends ChangeNotifier {
     } finally {
       busy = false;
       _report('');
+      if (_scanQueued) {
+        _scanQueued = false;
+        // Lance une analyse supplementaire apres la fin de la precedente.
+        // Les dossiers nouvellement ajoutes ne seront donc pas oublies.
+        Future<void>.microtask(() async { await scan(); });
+      }
     }
   }
 

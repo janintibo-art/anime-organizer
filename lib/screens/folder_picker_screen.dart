@@ -187,7 +187,9 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
         _error = 'Dossier illisible. Vérifie les autorisations de stockage.';
       });
     }
-    if (widget.pickExtension == null) _preview(path);
+    // Ne pas scanner recursivement pendant la navigation : sur une grosse
+    // bibliotheque, cela bloquait la selection pendant des minutes.
+    // L'analyse complete se fait APRES l'import, dans LibraryController.
   }
 
   /// Compte ce que l'importation trouverait, avant de valider.
@@ -308,21 +310,10 @@ class _FolderPickerScreenState extends State<FolderPickerScreen> {
           Row(
             children: [
               Expanded(
-                child: _previewing
-                    ? Text('Analyse en cours…',
-                        style: TextStyle(color: Palette.muted, fontSize: 12))
-                    : Text(
-                        _previewVideos == 0
-                            ? 'Aucune vidéo détectée ici'
-                            : '$_previewSeries séries · $_previewVideos vidéos détectées',
-                        style: TextStyle(
-                          color: _previewVideos == 0
-                              ? Palette.muted
-                              : Palette.kin,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                child: Text(
+                  'Les videos seront analysees apres import.',
+                  style: TextStyle(color: Palette.muted, fontSize: 12),
+                ),
               ),
               FilledButton.icon(
                 style: FilledButton.styleFrom(

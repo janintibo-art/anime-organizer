@@ -77,14 +77,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _addFolder() async {
-    await _ensurePermissions();
-    if (!mounted) return;
-    final dir = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const FolderPickerScreen()),
-    );
-    if (dir == null) return;
-    await library.addFolder(dir);
-    await library.scan();
+    try {
+      await _ensurePermissions();
+      if (!mounted) return;
+      final dir = await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (_) => const FolderPickerScreen()),
+      );
+      if (dir == null || dir.trim().isEmpty) return;
+      if (!Directory(dir).existsSync()) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dossier introuvable ou inaccessible.')));
+        return;
+      }
+      final alreadyAdded = library.folders.contains(dir);
+      await library.addFolder(dir);
+      // Si un scan est en cours, le controleur met le nouveau scan en file.
+      await library.scan();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+        alreadyAdded ? 'Dossier deja present. Analyse demandee.'
+            : 'Dossier ajoute. Analyse lancee ou programmee.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Impossible d’ajouter ce dossier : $e')));
+    }
   }
 
   void _open(Anime anime) {
@@ -132,6 +148,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: 'Ajouter un dossier',
+                onPressed: _addFolder,
+                icon: const Icon(Icons.create_new_folder_outlined),
+              ),
               IconButton(
                 tooltip: 'Verifier les fiches incoherentes',
                 onPressed: library.busy ? null : () async {
