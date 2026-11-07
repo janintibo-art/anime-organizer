@@ -23,6 +23,7 @@ class PlayerScreen extends StatefulWidget {
   final int startIndex;
   final Anime? anime;
   final Duration startAt;
+  final Future<void> Function(Duration position, Duration duration, bool completed)? onRemoteProgress;
 
   const PlayerScreen({
     super.key,
@@ -31,6 +32,7 @@ class PlayerScreen extends StatefulWidget {
     this.startIndex = 0,
     this.anime,
     this.startAt = Duration.zero,
+    this.onRemoteProgress,
   });
 
   @override
@@ -555,6 +557,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _persist({bool forceWatched = false}) {
+    if (widget.onRemoteProgress != null && widget.episodes.isNotEmpty) {
+      unawaited(widget.onRemoteProgress!(
+        forceWatched ? _duration : _position, _duration, forceWatched));
+    }
     final item = widget.anime;
     if (item == null || widget.episodes.isEmpty) return;
     final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];

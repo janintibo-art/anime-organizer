@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import hmac
 import json
+import threading
 import mimetypes
 import os
 import re
@@ -21,6 +22,8 @@ VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.wmv', '.f
 MAX_CHUNK = 512 * 1024
 MAX_RANGE = 50 * 1024 * 1024
 TICKET_LIFETIME = 6 * 3600
+PROGRESS_LOCK = threading.Lock()
+
 
 
 def read_library(path):
@@ -110,6 +113,26 @@ def stream_capabilities():
             'message': 'FFmpeg disponible : conversion 720p ou 480p possible.'}
 
 
+def progress_file(lib):
+    return Path(str(lib) + '.remote_progress.json')
+
+def read_progress(lib):
+    try:
+        payload = json.loads(progress_file(lib).read_text(encoding='utf-8'))
+        if isinstance(payload, dict): return payload
+    except (OSError, ValueError, TypeError):
+        pass
+    return {}
+
+def write_progress(lib, key, event):
+    with PROGRESS_LOCK:
+        values = read_progress(lib)
+        values[key] = event
+        target = progress_file(lib)
+        temporary = Path(str(target) + '.tmp')
+        temporary.write_text(json.dumps(values, ensure_ascii=False), encoding='utf-8')
+        os.replace(temporary, target)
+
 def handler_factory(lib, token):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
@@ -149,10 +172,14 @@ def handler_factory(lib, token):
                             self.reply(404, {'error': 'series_not_found'}); return
                         episodes = catalog[series].get('episodes', [])
                         if route == '/v1/episodes':
+                            progress = read_progress(lib)
+                            folder = str(catalog[series].get('folderTitle', ''))
                             self.reply(200, {'episodes': [
                                 {'id': i, 'name': str(e.get('name', 'Épisode'))[:240],
                                  'season': e.get('season'), 'number': e.get('number'),
                                  'bonus': bool(e.get('bonus', False)),
+                                 'resumeMs': progress.get(json.dumps([folder, e.get('season') or 1, e.get('number'), e.get('name')], ensure_ascii=False), {}).get('positionMs', 0),
+                                 'watchedRemote': progress.get(json.dumps([folder, e.get('season') or 1, e.get('number'), e.get('name')], ensure_ascii=False), {}).get('watched', False),
                                  'available': Path(e.get('path', '')).is_file()
                                  and Path(e.get('path', '')).suffix.lower() in VIDEO_EXTENSIONS}
                                 for i, e in enumerate(episodes)]})
@@ -174,6 +201,50 @@ def handler_factory(lib, token):
                 self.stream(route, query, head=False)
                 return
             self.reply(404, {'error': 'not_found'})
+
+        def do_POST(self):
+            if urlsplit(self.path).path != '/v1/progress':
+                self.reply(404, {'error': 'not_found'}); return
+            if not self.authorized():
+                self.reply(401, {'error': 'invalid_pairing_code'}); return
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 1 <= length <= 4096:
+                    self.reply(413, {'error': 'invalid_size'}); return
+                incoming = json.loads(self.rfile.read(length).decode('utf-8'))
+                series = incoming.get('series')
+                episode = incoming.get('episode')
+                position = incoming.get('positionMs')
+                duration = incoming.get('durationMs')
+                if not all(type(v) is int for v in (series, episode, position, duration)):
+                    raise ValueError('invalid types')
+                if not (0 <= position <= 86400000 and 0 <= duration <= 86400000):
+                    raise ValueError('invalid time')
+                catalog = read_library(lib)
+                if not (0 <= series < len(catalog)):
+                    self.reply(404, {'error': 'series_not_found'}); return
+                a = catalog[series]
+                videos = a.get('episodes', [])
+                if not (0 <= episode < len(videos)):
+                    self.reply(404, {'error': 'episode_not_found'}); return
+                e = videos[episode]
+                folder = str(a.get('folderTitle') or '')
+                season, number = e.get('season') or 1, e.get('number')
+                key = json.dumps([folder, season, number, e.get('name')], ensure_ascii=False)
+                watched = bool(incoming.get('completed') is True or
+                    (duration > 0 and position / duration >= .92))
+                record = {'folderTitle': folder, 'season': season,
+                    'number': number, 'name': e.get('name'),
+                    'positionMs': 0 if watched else position,
+                    'durationMs': duration, 'watched': watched,
+                    'updatedAtMs': int(time.time() * 1000)}
+                with PROGRESS_LOCK:
+                    previous = read_progress(lib).get(key, {})
+                if previous.get('watched') is True: record['watched'] = True
+                write_progress(lib, key, record)
+                self.reply(200, {'saved': True})
+            except (ValueError, TypeError, KeyError, UnicodeError, OSError):
+                self.reply(400, {'error': 'invalid_progress'})
 
         def do_HEAD(self):
             parsed = urlsplit(self.path)

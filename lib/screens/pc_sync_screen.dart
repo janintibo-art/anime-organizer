@@ -159,6 +159,55 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
     if (mounted) setState(() => _message = '$matched séries locales correspondantes · $added épisodes marqués vus. Les autres restent inchangés.');
   }
 
+  Future<void> _importRemotePlayback() async {
+    if (!Platform.isWindows || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final dir = await getApplicationSupportDirectory();
+      final path = p.join(dir.path, 'library.json.remote_progress.json');
+      final file = File(path);
+      if (!file.existsSync()) {
+        _message = 'Aucune progression Android à importer.';
+        return;
+      }
+      final payload = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      var imported = 0;
+      for (final value in payload.values) {
+        if (value is! Map) continue;
+        final folder = '${value['folderTitle'] ?? ''}';
+        final matches = library.animes.where((a) => a.folderTitle == folder).toList();
+        if (matches.length != 1) continue;
+        final item = matches.single;
+        final candidates = item.episodes.where((e) =>
+          (e.season ?? 1) == value['season'] && e.number == value['number'] &&
+          e.name == value['name']).toList();
+        if (candidates.length != 1) continue;
+        final episode = candidates.single;
+        final updated = value['updatedAtMs'];
+        if (updated is! int || updated <= (item.lastPlayedAtMs ?? 0)) continue;
+        final watched = value['watched'] == true;
+        final position = value['positionMs'];
+        if (position is! int || position < 0) continue;
+        item.lastEpisodePath = episode.path;
+        item.lastPositionMs = watched ? 0 : position;
+        item.lastPlayedAtMs = updated;
+        if (watched && !item.watchedPaths.contains(episode.path)) {
+          item.watchedPaths.add(episode.path);
+        }
+        imported++;
+      }
+      if (imported > 0) {
+        await library.save();
+        library.refresh();
+      }
+      _message = '$imported progression(s) Android importée(s) sur Windows.';
+    } catch (e) {
+      _message = 'Import impossible : $e';
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   void dispose() {
     _server?.kill();
@@ -185,6 +234,12 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
           const SizedBox(height: 8),
           SelectableText('Code d’association : ${_pairCode.isEmpty ? '—' : _pairCode}',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _importRemotePlayback,
+            icon: const Icon(Icons.download_done),
+            label: const Text('Importer les lectures effectuées sur Android'),
+          ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: _busy ? null : (_server == null ? _start : () {

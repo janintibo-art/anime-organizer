@@ -105,8 +105,21 @@ class _RemoteEpisodesScreenState extends State<RemoteEpisodesScreen> {
         'expires': '$expiry', 'signature': signature,
       }).toString();
       if (!mounted) return;
+      final resume = episode['resumeMs'] is int ? episode['resumeMs'] as int : 0;
       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PlayerScreen(
         title: widget.seriesTitle,
+        startAt: Duration(milliseconds: resume > 0 ? resume : 0),
+        onRemoteProgress: (position, duration, completed) async {
+          try {
+            await http.post(_endpoint('/v1/progress', {}),
+              headers: {'X-Anime-Pair-Code': widget.pairCode,
+                        'Content-Type': 'application/json'},
+              body: jsonEncode({'series': widget.seriesId, 'episode': index,
+                'positionMs': position.inMilliseconds,
+                'durationMs': duration.inMilliseconds, 'completed': completed}),
+            ).timeout(const Duration(seconds: 6));
+          } catch (_) { /* Une perte réseau ne doit pas interrompre le lecteur. */ }
+        },
         episodes: [Episode(path: url, name: '${episode['name'] ?? 'Épisode'}',
           season: episode['season'] as int?, number: episode['number'] as int?)],
       )));
@@ -156,7 +169,9 @@ class _RemoteEpisodesScreenState extends State<RemoteEpisodesScreen> {
                 leading: Icon(available ? Icons.play_circle_outline : Icons.block,
                   color: available ? Palette.kin : Palette.muted),
                 title: Text('${e['name'] ?? 'Épisode'}'),
-                subtitle: Text('Saison ${season ?? 1} · Épisode ${number ?? i + 1}'),
+                subtitle: Text('Saison ${season ?? 1} · Épisode ${number ?? i + 1}'
+                  '${e['watchedRemote'] == true ? ' · Vu sur téléphone' :
+                    (e['resumeMs'] is int && (e['resumeMs'] as int) > 0 ? ' · Reprise disponible' : '')}'),
                 onTap: !available || _busy ? null : () => _play(e),
               );
             })),
