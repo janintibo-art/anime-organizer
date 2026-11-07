@@ -681,7 +681,8 @@ class _DetailScreenState extends State<DetailScreen> {
                 onTap: () => Navigator.pop(ctx, 'western')),
               ListTile(title: const Text('Animation adulte'),
                 onTap: () => Navigator.pop(ctx, 'adult')),
-              ListTile(title: const Text('Autre animation'),
+              // V24_UNIDENTIFIED: unknown files stay visible; allow manual override.
+              ListTile(title: const Text('À identifier / autre animation'),
                 onTap: () => Navigator.pop(ctx, 'other')),
             ],
           )),

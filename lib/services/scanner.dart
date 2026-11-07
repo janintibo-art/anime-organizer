@@ -203,7 +203,11 @@ class Scanner {
     if (consensus != null) return consensus;
     if (episodes.length == 1) {
       final raw = p.basenameWithoutExtension(episodes.single.path);
-      final title = cleanTitle(raw).replaceAll(RegExp(r'[._]+'), ' ').trim();
+      // V24_UNIDENTIFIED: release year and codec tags aren't title words.
+      // Only cut at a year that follows a title (not films beginning with 2001).
+      final normalized = cleanTitle(raw).replaceAll(RegExp(r'[._]+'), ' ').trim();
+      final release = RegExp(r'\s+(?:19[2-9]\d|20[0-3]\d)\b').firstMatch(normalized);
+      final title = (release == null ? normalized : normalized.substring(0, release.start)).trim();
       if (title.length >= 4) return title;
     }
     final folder = cleanTitle(folderTitle);

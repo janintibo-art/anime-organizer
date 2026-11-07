@@ -421,7 +421,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ['anime', 'Animés japonais'],
                   ['western', 'Dessins animés'],
                   ['adult', 'Animation adulte'],
-                  ['other', 'Autres animations'],
+                  // V24_UNIDENTIFIED: easy access to files without trusted identification.
+                  ['other', 'À identifier / autres'],
                 ]) ...[
                   _chip(
                     label: c[1],

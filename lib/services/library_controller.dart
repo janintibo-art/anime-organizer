@@ -413,6 +413,9 @@ class LibraryController extends ChangeNotifier {
     if (RegExp(r'\b(fritz (le chat|the cat)|south park|beavis|rick and morty|'
         r'family guy|american dad|bojack horseman|big mouth|solar opposites)\b')
         .hasMatch(t)) return 'adult';
+    // V24_UNIDENTIFIED: classify Japanese sources by provider evidence.
+    if (const {'anilist', 'jikan', 'kitsu', 'animethemes', 'seed', 'index'}
+        .contains(meta.source)) return 'anime';
     if (meta.source == 'tvmaze') return 'western';
     if (meta.source == 'tmdb' || meta.source == 'tmdb_movie') {
       if (meta.originLanguage == 'ja') return 'anime';
@@ -432,7 +435,8 @@ class LibraryController extends ChangeNotifier {
         r'batman the animated series)\b').hasMatch(t)) {
       return 'western';
     }
-    return 'anime';
+    // V24_UNIDENTIFIED: unknown does not mean Japanese anime.
+    return 'other';
   }
 
   /// Remet en coherence les fiches trompeuses, meme si les serveurs sont
@@ -467,6 +471,7 @@ class LibraryController extends ChangeNotifier {
     anime.metaFetched = false;
     anime.metaFailed = false;
     anime.metaFailCount = 0;
+    anime.category = _guessCategory(detectedTitle);
     // Une ancienne association fautive ne doit plus etre reutilisee.
     knownTitles.remove(_key(oldTitle));
     knownTitles.remove(_key(detectedTitle));
@@ -655,6 +660,10 @@ class LibraryController extends ChangeNotifier {
           );
         }
       }
+    }
+    if (meta == null && overrideQuery == null && !manualIds.contains(anime.id) &&
+        !anime.metaFetched) {
+      anime.category = _guessCategory(fileTitle ?? query);
     }
     if (meta == null) {
       // Une panne reseau ne doit pas condamner la fiche : on retentera
