@@ -353,7 +353,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
           OutlinedButton.icon(
             onPressed: _server == null ? null : _copyInvitation,
             icon: const Icon(Icons.copy_all),
-            label: const Text('Copier l'invitation pour Android'),
+            label: const Text("Copier l'invitation pour Android"),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
@@ -374,7 +374,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
           FilledButton.icon(
             onPressed: _busy ? null : _pasteInvitation,
             icon: const Icon(Icons.content_paste),
-            label: const Text('Coller l'invitation du PC et se connecter'),
+            label: const Text("Coller l'invitation du PC et se connecter"),
           ),
           const SizedBox(height: 12),
           const Text('Connexion manuelle (depannage / Tailscale) :'),
