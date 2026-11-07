@@ -98,6 +98,7 @@ class Anime {
   int? malId;
   String? imageUrl;
   String? backdropUrl;
+  String? backdropLocalPath; // V25: image personnelle copiee dans le stockage de l’application.
   bool backdropManual = false;
   double backdropAlignX = 0.0;
   double backdropAlignY = 0.0;
@@ -166,6 +167,7 @@ class Anime {
     this.malId,
     this.imageUrl,
     this.backdropUrl,
+    this.backdropLocalPath,
     this.backdropManual = false,
     this.backdropAlignX = 0.0,
     this.backdropAlignY = 0.0,
@@ -364,6 +366,7 @@ class Anime {
         'malId': malId,
         'imageUrl': imageUrl,
         'backdropUrl': backdropUrl,
+        'backdropLocalPath': backdropLocalPath,
         'backdropManual': backdropManual,
         'backdropAlignX': backdropAlignX,
         'backdropAlignY': backdropAlignY,
@@ -403,6 +406,7 @@ class Anime {
         malId: j['malId'] as int?,
         imageUrl: j['imageUrl'] as String?,
         backdropUrl: j['backdropUrl'] as String?,
+        backdropLocalPath: j['backdropLocalPath'] as String?,
         backdropManual: j['backdropManual'] as bool? ?? false,
         backdropAlignX: (j['backdropAlignX'] as num?)?.toDouble() ?? 0.0,
         backdropAlignY: (j['backdropAlignY'] as num?)?.toDouble() ?? 0.0,

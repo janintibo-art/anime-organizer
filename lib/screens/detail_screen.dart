@@ -1,5 +1,10 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:ui' as ui;
+
+import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -37,7 +42,7 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Future<void> _loadBackdrop({bool force = false}) async {
-    if (anime.backdropManual) return;
+    if (anime.backdropManual || anime.backdropLocalPath != null) return;
     if (!force && anime.backdropUrl != null && anime.backdropUrl!.isNotEmpty) return;
     final apiKey = library.settings.tmdbKey.trim();
     if (apiKey.isEmpty) {
@@ -158,9 +163,11 @@ class _DetailScreenState extends State<DetailScreen> {
     );
     if (selection == null || !mounted) return;
     if (selection.isEmpty) {
+      anime.backdropLocalPath = null;
       anime.backdropManual = false;
       anime.backdropUrl = null;
     } else {
+      anime.backdropLocalPath = null;
       anime.backdropManual = true;
       anime.backdropUrl = selection;
     }
@@ -316,7 +323,12 @@ class _DetailScreenState extends State<DetailScreen> {
         content: SizedBox(width: 390, child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (anime.backdropUrl != null)
+            if (anime.backdropLocalPath != null && File(anime.backdropLocalPath!).existsSync())
+              AspectRatio(aspectRatio: 16/9,
+                child: ClipRRect(borderRadius: BorderRadius.circular(8),
+                  child: Image.file(File(anime.backdropLocalPath!), fit: BoxFit.cover,
+                    alignment: Alignment(x, y))))
+            else if (anime.backdropUrl != null)
               AspectRatio(aspectRatio: 16/9,
                 child: ClipRRect(borderRadius: BorderRadius.circular(8),
                   child: CachedNetworkImage(
@@ -349,21 +361,90 @@ class _DetailScreenState extends State<DetailScreen> {
     if (mounted) setState(() {});
   }
 
+  // V25_PANORAMA_LOCAL: copie perenne et validation des dimensions.
+  Future<void> _importLocalBackdrop() async {
+    if (_working) return;
+    try {
+      final selection = await FilePicker.platform.pickFiles(
+        type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+        withData: false);
+      if (selection == null || selection.files.isEmpty) return;
+      final sourcePath = selection.files.single.path;
+      if (sourcePath == null || sourcePath.isEmpty) throw const FormatException('Fichier inaccessible.');
+      final source = File(sourcePath);
+      if (!await source.exists()) throw const FormatException('Fichier introuvable.');
+      if (await source.length() > 25 * 1024 * 1024) {
+        throw const FormatException('Image trop volumineuse (maximum 25 Mo).');
+      }
+      final bytes = await source.readAsBytes();
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final width = frame.image.width;
+      final height = frame.image.height;
+      frame.image.dispose();
+      codec.dispose();
+      if (width < 960 || height < 540 || width / height < 1.3) {
+        throw const FormatException('Choisis une image paysage de 960 × 540 minimum.');
+      }
+      final dir = Directory(p.join((await getApplicationSupportDirectory()).path, 'panoramas'));
+      await dir.create(recursive: true);
+      final extension = p.extension(source.path).toLowerCase();
+      final name = 'panorama_${DateTime.now().microsecondsSinceEpoch}${extension}';
+      final destination = File(p.join(dir.path, name));
+      await destination.writeAsBytes(bytes, flush: true);
+      final previous = anime.backdropLocalPath;
+      anime.backdropLocalPath = destination.path;
+      anime.backdropManual = true;
+      anime.backdropAlignX = 0;
+      anime.backdropAlignY = 0;
+      await library.save();
+      library.refresh();
+      if (mounted) setState(() {});
+      // Supprimer seulement une ancienne copie gérée par l’application.
+      if (previous != null && p.isWithin(dir.path, previous)) {
+        try { await File(previous).delete(); } catch (_) {}
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Panorama personnel enregistré.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Import impossible : $e')));
+    }
+  }
+
+  Future<void> _removeLocalBackdrop() async {
+    final previous = anime.backdropLocalPath;
+    anime.backdropLocalPath = null;
+    anime.backdropManual = false;
+    anime.backdropUrl = null;
+    await library.save();
+    library.refresh();
+    if (mounted) setState(() {});
+    if (previous != null) {
+      final dir = Directory(p.join((await getApplicationSupportDirectory()).path, 'panoramas'));
+      if (p.isWithin(dir.path, previous)) {
+        try { await File(previous).delete(); } catch (_) {}
+      }
+    }
+    unawaited(_loadBackdrop());
+  }
+
   Widget _backgroundArt() {
-    final path = anime.backdropUrl == null ? anime.posterPath : null;
-    final remote = anime.backdropUrl ?? anime.imageUrl;
     final position = Alignment(anime.backdropAlignX, anime.backdropAlignY);
+    final local = anime.backdropLocalPath;
     Widget image;
-    if (path != null && File(path).existsSync()) {
-      image = Image.file(File(path), fit: BoxFit.cover,
-          alignment: position,
-          errorBuilder: (_, __, ___) => const SizedBox.shrink());
-    } else if (remote != null && remote.isNotEmpty) {
-      image = CachedNetworkImage(imageUrl: remote, fit: BoxFit.cover,
-          alignment: position,
-          errorWidget: (_, __, ___) => const SizedBox.shrink());
+    if (local != null && File(local).existsSync()) {
+      image = Image.file(File(local), fit: BoxFit.cover,
+          alignment: position, errorBuilder: (_, __, ___) => const SizedBox.shrink());
+    } else if (anime.backdropUrl != null && anime.backdropUrl!.isNotEmpty) {
+      image = CachedNetworkImage(imageUrl: anime.backdropUrl!, fit: BoxFit.cover,
+          alignment: position, errorWidget: (_, __, ___) => const SizedBox.shrink());
     } else {
-      image = const SizedBox.shrink();
+      // V25: aucune affiche verticale agrandie en faux panorama.
+      image = const DecoratedBox(decoration: BoxDecoration(
+        gradient: LinearGradient(begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF192734), Color(0xFF10151D), Color(0xFF30202B)])));
     }
     return IgnorePointer(
       child: Stack(fit: StackFit.expand, children: [
@@ -663,8 +744,10 @@ class _DetailScreenState extends State<DetailScreen> {
         setState(() => _immersiveBackground = !_immersiveBackground); break;
       case 'refresh': await _loadBackdrop(force: true); break;
       case 'choose': await _chooseBackdrop(); break;
+      case 'import_local': await _importLocalBackdrop(); break;
+      case 'remove_local': await _removeLocalBackdrop(); break;
       case 'crop':
-        if (anime.backdropUrl != null) await _adjustBackdrop();
+        if (anime.backdropUrl != null || anime.backdropLocalPath != null) await _adjustBackdrop();
         break;
       case 'correct': await _searchAgain(); break;
       case 'ai': await _askAi(); break;
@@ -739,6 +822,12 @@ class _DetailScreenState extends State<DetailScreen> {
             PopupMenuItem(value: 'choose', child: ListTile(
               dense: true, leading: Icon(Icons.collections_outlined),
               title: Text('Choisir le panorama'))),
+            PopupMenuItem(value: 'import_local', child: ListTile(
+              dense: true, leading: Icon(Icons.add_photo_alternate_outlined),
+              title: Text('Importer un panorama du disque'))),
+            PopupMenuItem(value: 'remove_local', child: ListTile(
+              dense: true, leading: Icon(Icons.restore),
+              title: Text('Revenir au panorama automatique'))),
             PopupMenuItem(value: 'crop', child: ListTile(
               dense: true, leading: Icon(Icons.crop_free),
               title: Text('Ajuster le cadrage'))),
