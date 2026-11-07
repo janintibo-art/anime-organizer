@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -27,6 +28,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
   Process? _server;
   String _pairCode = '';
   String _ip = '';
+  String _tailHost = ''; // V39_REMOTE_TAILSCALE: stable PC name across networks.
   String _message = '';
   bool _busy = false;
   List<Map<String, dynamic>> _remote = [];
@@ -34,7 +36,12 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
   @override
   void initState() {
     super.initState();
-    if (Platform.isWindows) _findIp();
+    if (Platform.isWindows) {
+      _findIp();
+      unawaited(_detectTailHost());
+    } else {
+      unawaited(_restorePairing());
+    }
   }
 
   Future<void> _findIp() async {
@@ -49,6 +56,109 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
         }
       }
     } catch (_) {}
+  }
+
+  // V39_REMOTE_TAILSCALE: a private tailnet, not an Internet port exposure.
+  Future<String> _detectTailHost() async {
+    if (!Platform.isWindows) return '';
+    final programFiles = Platform.environment['ProgramFiles'] ?? r'C:\Program Files';
+    final candidates = <String>[
+      p.join(programFiles, 'Tailscale', 'tailscale.exe'),
+      'tailscale',
+    ];
+    for (final exe in candidates) {
+      try {
+        final result = await Process.run(exe, ['status', '--json'])
+            .timeout(const Duration(seconds: 5));
+        if (result.exitCode != 0) continue;
+        final data = jsonDecode(result.stdout.toString());
+        if (data is! Map || data['BackendState'] != 'Running') continue;
+        final self = data['Self'];
+        if (self is! Map) continue;
+        var host = (self['DNSName'] ?? '').toString().trim();
+        if (host.endsWith('.')) host = host.substring(0, host.length - 1);
+        if (host.isEmpty) {
+          final ips = self['TailscaleIPs'];
+          if (ips is List) {
+            for (final ip in ips) {
+              if (ip.toString().startsWith('100.')) {
+                host = ip.toString();
+                break;
+              }
+            }
+          }
+        }
+        if (mounted) setState(() => _tailHost = host);
+        return host;
+      } catch (_) { /* Tailscale absent: manual troubleshooting remains. */ }
+    }
+    if (mounted) setState(() => _tailHost = '');
+    return '';
+  }
+
+  Future<File> _pairingFile(String name) async {
+    final dir = await getApplicationSupportDirectory();
+    return File(p.join(dir.path, name));
+  }
+
+  // Same 12-character code across server restarts, allowing reconnect.
+  // Private app support file, never part of the user's Git repository.
+  Future<String> _savedServerCode() async {
+    final file = await _pairingFile('pc_sync_pair_v39.json');
+    try {
+      final data = jsonDecode(await file.readAsString());
+      if (data is Map && data['code'] is String &&
+          RegExp(r'^[A-Z2-9]{12}$').hasMatch(data['code'] as String)) {
+        return data['code'] as String;
+      }
+    } catch (_) {}
+    final token = _newCode();
+    await file.writeAsString(jsonEncode({'code': token}), flush: true);
+    return token;
+  }
+
+  Future<void> _restorePairing() async {
+    try {
+      final file = await _pairingFile('android_pc_pair_v39.json');
+      final data = jsonDecode(await file.readAsString());
+      if (data is! Map) return;
+      final host = '${data['host'] ?? ''}';
+      final code = '${data['code'] ?? ''}';
+      if (!_validHost(host) || code.length != 12 || !mounted) return;
+      _address.text = host;
+      _code.text = code;
+      setState(() => _message = 'PC memorise : connexion en cours...');
+      await _connect();
+    } catch (_) { /* First use: no saved pairing. */ }
+  }
+
+  bool _validHost(String host) =>
+      RegExp(r'^[a-zA-Z0-9.-]+$').hasMatch(host) && host.length <= 253;
+
+  Future<void> _pasteInvitation() async {
+    final value = (await Clipboard.getData('text/plain'))?.text?.trim() ?? '';
+    final parts = value.split('|');
+    if (parts.length != 3 || parts[0] != 'AO39' ||
+        !_validHost(parts[1]) || !RegExp(r'^[A-Z2-9]{12}$').hasMatch(parts[2])) {
+      if (mounted) setState(() => _message =
+        'Invitation introuvable. Copie-la sur Windows et colle-la ici.');
+      return;
+    }
+    _address.text = parts[1];
+    _code.text = parts[2];
+    await _connect();
+  }
+
+  Future<void> _copyInvitation() async {
+    final host = _tailHost;
+    if (host.isEmpty || _pairCode.isEmpty) {
+      if (mounted) setState(() => _message =
+        'Active Tailscale sur Windows puis demarre le serveur.');
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: 'AO39|$host|$_pairCode'));
+    if (mounted) setState(() => _message =
+      'Invitation copiee. Elle contient le code secret : ne la partage pas publiquement.');
   }
 
   String _newCode() {
@@ -68,7 +178,8 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
       final dir = await getApplicationSupportDirectory();
       final lib = p.join(dir.path, 'library.json');
       if (!File(lib).existsSync()) throw Exception('Bibliothèque introuvable sur ce PC.');
-      final token = _newCode();
+      final token = await _savedServerCode();
+      await _detectTailHost();
       final child = await Process.start(exe, [
         '--library', lib, '--token', token, '--port', '$_port'
       ], mode: ProcessStartMode.normal);
@@ -105,7 +216,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
     if (_busy) return;
     final host = _address.text.trim();
     final token = _code.text.trim().toUpperCase();
-    if (!RegExp(r'^[a-zA-Z0-9.-]+$').hasMatch(host) || token.length < 10) {
+    if (!_validHost(host) || token.length != 12) {
       setState(() => _message = 'Entre l’adresse IP locale du PC et son code d’association.');
       return;
     }
@@ -120,8 +231,12 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
       final items = body['series'] as List? ?? [];
       _remote = items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       _message = '${_remote.length} séries reçues depuis le PC. Aucune vidéo transférée.';
+      if (Platform.isAndroid) {
+        final saved = await _pairingFile('android_pc_pair_v39.json');
+        await saved.writeAsString(jsonEncode({'host': host, 'code': token}), flush: true);
+      }
     } catch (e) {
-      _message = 'Connexion impossible : $e. Vérifie le même Wi-Fi et le pare-feu Windows.';
+      _message = 'Connexion impossible : $e. Verifie que Tailscale est connecte sur les deux appareils, que le PC est allume et que le serveur tourne.';
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -226,14 +341,20 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
         const SizedBox(height: 12),
         Text(windows
           ? 'Démarre le serveur sur ton PC, puis saisis les informations affichées dans l’APK Android. Le serveur s’arrête quand tu quittes cet écran.'
-          : 'Connecte les deux appareils au même Wi-Fi ou à ton réseau privé Tailscale. Les vidéos restent sur le PC.',
+          : 'Accede a ton PC de partout via Tailscale, meme en 4G. Colle une invitation une seule fois, puis la connexion est memorisee. Le PC doit rester allume et le serveur demarre.',
           style: TextStyle(color: Palette.muted)),
         const SizedBox(height: 20),
         if (windows) ...[
-          Text('Adresse du PC : ${_ip.isEmpty ? 'adresse locale non trouvée' : _ip}:$_port'),
+          Text('PC sur Tailscale : ${_tailHost.isEmpty ? 'Tailscale non detecte' : _tailHost}'),
           const SizedBox(height: 8),
           SelectableText('Code d’association : ${_pairCode.isEmpty ? '—' : _pairCode}',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _server == null ? null : _copyInvitation,
+            icon: const Icon(Icons.copy_all),
+            label: const Text('Copier l'invitation pour Android'),
+          ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _busy ? null : _importRemotePlayback,
@@ -250,8 +371,16 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
             label: Text(_server == null ? 'Démarrer le serveur' : 'Arrêter le serveur'),
           ),
         ] else ...[
+          FilledButton.icon(
+            onPressed: _busy ? null : _pasteInvitation,
+            icon: const Icon(Icons.content_paste),
+            label: const Text('Coller l'invitation du PC et se connecter'),
+          ),
+          const SizedBox(height: 12),
+          const Text('Connexion manuelle (depannage / Tailscale) :'),
+          const SizedBox(height: 8),
           TextField(controller: _address,
-            decoration: const InputDecoration(labelText: 'Adresse IP locale du PC', hintText: '192.168.1.20')),
+            decoration: const InputDecoration(labelText: 'Nom Tailscale du PC', hintText: 'mon-pc.exemple.ts.net')),
           const SizedBox(height: 12),
           TextField(controller: _code, textCapitalization: TextCapitalization.characters,
             decoration: const InputDecoration(labelText: 'Code d’association (12 caractères)')),

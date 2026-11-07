@@ -116,72 +116,74 @@ class _HomeScreenState extends State<HomeScreen> {
       animation: library,
       builder: (context, _) {
         return Scaffold(
+          // V39_RESPONSIVE_HEADER: Android shows one menu, never overlapping the title.
           appBar: darkAppBar(
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(radiusSm),
-                      child: Image.asset('assets/icon.png',
-                          width: 24, height: 24, fit: BoxFit.cover),
-                    ),
-                    const SizedBox(width: 9),
-                    const Text('Anime Organizer'),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 33, top: 1),
-                  child: Text(
-                    library.animes.isEmpty
-                        ? 'アニメ ライブラリ'
-                        : '${library.animes.length} séries · ${library.totalEpisodes} épisodes',
-                    style: TextStyle(
-                      color: Palette.muted,
-                      fontSize: 10.5,
-                      letterSpacing: 0.8,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              IconButton(
-                tooltip: Platform.isWindows ? 'Serveur de synchronisation' : 'Se connecter au PC',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PcSyncScreen())),
-                icon: const Icon(Icons.sync_alt),
+            title: Row(mainAxisSize: MainAxisSize.min, children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(radiusSm),
+                child: Image.asset('assets/icon.png', width: 29, height: 29,
+                  fit: BoxFit.cover),
               ),
-              IconButton(
-                tooltip: 'Ajouter un dossier',
-                onPressed: _addFolder,
-                icon: const Icon(Icons.create_new_folder_outlined),
+              const SizedBox(width: 8),
+              const Flexible(child: Text('Anime Organizer', maxLines: 1,
+                overflow: TextOverflow.ellipsis)),
+            ]),
+            actions: Platform.isAndroid ? [
+              PopupMenuButton<String>(
+                tooltip: 'Options',
+                icon: const Icon(Icons.more_vert),
+                onSelected: (choice) async {
+                  switch (choice) {
+                    case 'sync':
+                      if (!mounted) return;
+                      await Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const PcSyncScreen()));
+                      break;
+                    case 'folder': await _addFolder(); break;
+                    case 'repair':
+                      if (library.busy) return;
+                      final count = await library.repairWrongMatches();
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$count fiche(s) verifiee(s).')));
+                      break;
+                    case 'scan':
+                      if (!library.busy) await library.scan();
+                      break;
+                    case 'settings':
+                      if (!mounted) return;
+                      await Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const SettingsScreen()));
+                      break;
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'sync', child: Text('Connexion au PC')),
+                  PopupMenuItem(value: 'folder', child: Text('Ajouter un dossier')),
+                  PopupMenuItem(value: 'repair', child: Text('Verifier les fiches')),
+                  PopupMenuItem(value: 'scan', child: Text('Actualiser la bibliotheque')),
+                  PopupMenuItem(value: 'settings', child: Text('Reglages')),
+                ],
               ),
-              IconButton(
-                tooltip: 'Verifier les fiches incoherentes',
+            ] : [
+              IconButton(tooltip: 'Synchronisation PC / Android',
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const PcSyncScreen())),
+                icon: const Icon(Icons.sync_alt)),
+              IconButton(tooltip: 'Ajouter un dossier', onPressed: _addFolder,
+                icon: const Icon(Icons.create_new_folder_outlined)),
+              IconButton(tooltip: 'Verifier les fiches incoherentes',
                 onPressed: library.busy ? null : () async {
                   final count = await library.repairWrongMatches();
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('$count fiche(s) corrigee(s) apres verification.')));
-                },
-                icon: const Icon(Icons.fact_check_outlined),
-              ),
-              IconButton(
-                tooltip: 'Relancer le scan',
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('$count fiche(s) corrigee(s).')));
+                }, icon: const Icon(Icons.fact_check_outlined)),
+              IconButton(tooltip: 'Relancer le scan',
                 onPressed: library.busy ? null : () => library.scan(),
-                icon: const Icon(Icons.refresh),
-              ),
-              IconButton(
-                tooltip: 'Réglages',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                ),
-                icon: const Icon(Icons.tune),
-              ),
+                icon: const Icon(Icons.refresh)),
+              IconButton(tooltip: 'Reglages',
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const SettingsScreen())),
+                icon: const Icon(Icons.tune)),
             ],
           ),
           floatingActionButton: library.animes.isEmpty
