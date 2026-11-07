@@ -236,7 +236,7 @@ class _DetailScreenState extends State<DetailScreen> {
             TextButton(onPressed: () => Navigator.pop(ctx),
               child: const Text('Fermer')),
           ]))),
-      )),
+      ),
     );
   }
 
