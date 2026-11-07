@@ -103,6 +103,11 @@ class Anime {
   List<String> galleryOrder = [];
   bool slideshowEnabled = false;
   int slideshowSeconds = 8;
+  // V32: ambiance musicale personnelle, stockée séparément des épisodes.
+  String? themeAudioPath;
+  bool themeAutoplay = true;
+  bool themeLoop = true;
+  double themeVolume = 25.0;
   String? backdropLocalPath; // V25: image personnelle copiee dans le stockage de l’application.
   bool backdropManual = false;
   double backdropAlignX = 0.0;
@@ -176,6 +181,10 @@ class Anime {
     List<String>? galleryOrder,
     this.slideshowEnabled = false,
     this.slideshowSeconds = 8,
+    this.themeAudioPath,
+    this.themeAutoplay = true,
+    this.themeLoop = true,
+    this.themeVolume = 25.0,
     this.backdropManual = false,
     this.backdropAlignX = 0.0,
     this.backdropAlignY = 0.0,
@@ -379,6 +388,10 @@ class Anime {
         'galleryOrder': galleryOrder,
         'slideshowEnabled': slideshowEnabled,
         'slideshowSeconds': slideshowSeconds,
+        'themeAudioPath': themeAudioPath,
+        'themeAutoplay': themeAutoplay,
+        'themeLoop': themeLoop,
+        'themeVolume': themeVolume,
         'backdropManual': backdropManual,
         'backdropAlignX': backdropAlignX,
         'backdropAlignY': backdropAlignY,
@@ -422,6 +435,10 @@ class Anime {
         galleryOrder: (j['galleryOrder'] as List? ?? const []).map((x) => x.toString()).toList(),
         slideshowEnabled: j['slideshowEnabled'] as bool? ?? false,
         slideshowSeconds: (j['slideshowSeconds'] as int? ?? 8).clamp(3, 60).toInt(),
+        themeAudioPath: j['themeAudioPath'] as String?,
+        themeAutoplay: j['themeAutoplay'] as bool? ?? true,
+        themeLoop: j['themeLoop'] as bool? ?? true,
+        themeVolume: (j['themeVolume'] as num? ?? 25).toDouble().clamp(0, 100).toDouble(),
         backdropManual: j['backdropManual'] as bool? ?? false,
         backdropAlignX: (j['backdropAlignX'] as num?)?.toDouble() ?? 0.0,
         backdropAlignY: (j['backdropAlignY'] as num?)?.toDouble() ?? 0.0,
