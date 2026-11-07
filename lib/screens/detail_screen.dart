@@ -304,17 +304,62 @@ class _DetailScreenState extends State<DetailScreen> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _adjustBackdrop() async {
+    var x = anime.backdropAlignX;
+    var y = anime.backdropAlignY;
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, refresh) => AlertDialog(
+        backgroundColor: Palette.surface,
+        title: const Text('Cadrage du panorama'),
+        content: SizedBox(width: 390, child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (anime.backdropUrl != null)
+              AspectRatio(aspectRatio: 16/9,
+                child: ClipRRect(borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: anime.backdropUrl!, fit: BoxFit.cover,
+                    alignment: Alignment(x, y),
+                  ))),
+            const SizedBox(height: 12),
+            const Text('Deplacer horizontalement'),
+            Slider(value: x, min: -1, max: 1,
+              onChanged: (v) => refresh(() => x = v)),
+            const Text('Deplacer verticalement'),
+            Slider(value: y, min: -1, max: 1,
+              onChanged: (v) => refresh(() => y = v)),
+          ],
+        )),
+        actions: [
+          TextButton(onPressed: () => refresh(() {x=0; y=0;}),
+            child: const Text('Centrer')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Enregistrer')),
+        ],
+      )),
+    );
+    if (changed != true || !mounted) return;
+    anime.backdropAlignX = x;
+    anime.backdropAlignY = y;
+    await library.save();
+    if (mounted) setState(() {});
+  }
+
   Widget _backgroundArt() {
     final path = anime.backdropUrl == null ? anime.posterPath : null;
     final remote = anime.backdropUrl ?? anime.imageUrl;
+    final position = Alignment(anime.backdropAlignX, anime.backdropAlignY);
     Widget image;
     if (path != null && File(path).existsSync()) {
       image = Image.file(File(path), fit: BoxFit.cover,
-          alignment: Alignment.topCenter,
+          alignment: position,
           errorBuilder: (_, __, ___) => const SizedBox.shrink());
     } else if (remote != null && remote.isNotEmpty) {
       image = CachedNetworkImage(imageUrl: remote, fit: BoxFit.cover,
-          alignment: Alignment.topCenter,
+          alignment: position,
           errorWidget: (_, __, ___) => const SizedBox.shrink());
     } else {
       image = const SizedBox.shrink();
@@ -555,6 +600,11 @@ class _DetailScreenState extends State<DetailScreen> {
                             label: const Text('Actualiser le panorama'),
                           ),
                           OutlinedButton.icon(
+                            onPressed: anime.backdropUrl == null ? null : _adjustBackdrop,
+                            icon: const Icon(Icons.crop_free, size: 18),
+                            label: const Text('Ajuster le cadrage'),
+                          ),
+                          OutlinedButton.icon(
                             onPressed: _working ? null : _chooseBackdrop,
                             icon: const Icon(Icons.collections_outlined, size: 18),
                             label: const Text('Choisir le panorama'),
@@ -691,7 +741,7 @@ class _DetailScreenState extends State<DetailScreen> {
               CachedNetworkImage(
                 imageUrl: anime.backdropUrl!,
                 fit: BoxFit.cover,
-                alignment: Alignment.center,
+                alignment: Alignment(anime.backdropAlignX, anime.backdropAlignY),
                 errorWidget: (_, __, ___) => Container(
                   color: Palette.ink,
                   alignment: Alignment.center,

@@ -173,7 +173,7 @@ class Scanner {
       r'season[ ._-]*\d{1,2}|[eé]pisode[ ._-]*\d{1,3}|ep[ ._-]*\d{1,3})\b',
       caseSensitive: false,
     );
-    for (final e in episodes.take(12)) {
+    for (final e in episodes.take(80)) {
       final m = marker.firstMatch(e.name);
       if (m == null || m.start < 4) continue;
       var candidate = cleanTitle(e.name.substring(0, m.start));
@@ -190,8 +190,10 @@ class Scanner {
       counts[name] = (counts[name] ?? 0) + 1;
     }
     final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    // Un fichier unique explicite suffit ; sinon confirmation par deux vidéos.
+    // Un consensus clair est obligatoire pour ne pas nommer une saison
+    // entiere d'apres une video isolee ou un titre parasite.
     if (episodes.length > 1 && sorted.first.value < 2) return null;
+    if (names.length >= 4 && sorted.first.value / names.length < 0.65) return null;
     return sorted.first.key;
   }
 

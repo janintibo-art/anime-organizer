@@ -421,6 +421,43 @@ class LibraryController extends ChangeNotifier {
     return 'anime';
   }
 
+  /// Remet en coherence les fiches trompeuses, meme si les serveurs sont
+  /// momentanement injoignables. Le resultat est conservateur : seul un
+  /// titre present dans plusieurs fichiers peut invalider des metadonnees.
+  int lastScanSuspects = 0;
+  int lastScanUnresolved = 0;
+
+  void _clearWrongMetadata(Anime anime, String detectedTitle) {
+    final oldTitle = anime.folderTitle;
+    anime.folderTitle = detectedTitle;
+    anime.apiTitle = null;
+    anime.nativeTitle = null;
+    anime.romajiTitle = null;
+    anime.frenchTitle = null;
+    anime.malId = null;
+    anime.imageUrl = null;
+    anime.backdropUrl = null;
+    anime.backdropManual = false;
+    anime.posterPath = null;
+    anime.synopsisEn = null;
+    anime.synopsisTranslated = null;
+    anime.genres = [];
+    anime.score = null;
+    anime.popularity = null;
+    anime.studios = null;
+    anime.metaSource = null;
+    anime.year = null;
+    anime.type = null;
+    anime.status = null;
+    anime.episodesCount = null;
+    anime.metaFetched = false;
+    anime.metaFailed = false;
+    anime.metaFailCount = 0;
+    // Une ancienne association fautive ne doit plus etre reutilisee.
+    knownTitles.remove(_key(oldTitle));
+    knownTitles.remove(_key(detectedTitle));
+  }
+
   /// Re-examine les fiches deja identifiees en comparant le titre avec
   /// celui qui revient dans plusieurs episodes. Ne modifie rien sans
   /// trouver une nouvelle correspondance fiable dans les catalogues.
@@ -428,6 +465,8 @@ class LibraryController extends ChangeNotifier {
     if (busy) return 0;
     busy = true;
     var repaired = 0;
+    lastScanSuspects = 0;
+    lastScanUnresolved = 0;
     try {
       final suspicious = animes.where((a) {
         if (manualIds.contains(a.id)) return false;
@@ -438,6 +477,7 @@ class LibraryController extends ChangeNotifier {
             .whereType<String>();
         return names.every((n) => MetadataService.similarity(file, n) < 0.48);
       }).toList();
+      lastScanSuspects = suspicious.length;
       for (var i = 0; i < suspicious.length; i++) {
         final anime = suspicious[i];
         final file = Scanner.titleFromFiles(anime.episodes)!;
@@ -449,8 +489,18 @@ class LibraryController extends ChangeNotifier {
         final match = await MetadataService.smartSearch(file,
             source: source, tmdbKey: settings.tmdbKey,
             episodeCount: anime.episodes.where((e) => !e.bonus).length);
+        // Une fiche DBZ ne doit pas rester affichee comme vraie simplement
+        // parce qu'aucune API n'a repondu. Afficher le titre du fichier.
+        // Les corrections manuelles restent exclues du scan.
         if (match == null ||
-            MetadataService.similarity(file, match.title) < 0.72) continue;
+            MetadataService.similarity(file, match.title) < 0.72) {
+          _clearWrongMetadata(anime, file);
+          lastScanUnresolved++;
+          repaired++;
+          await save();
+          notifyListeners();
+          continue;
+        }
         applyMeta(anime, match);
         if (category != 'anime') anime.category = category;
         remember(anime.folderTitle, match.titleRomaji ?? match.title);

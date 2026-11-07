@@ -99,6 +99,8 @@ class Anime {
   String? imageUrl;
   String? backdropUrl;
   bool backdropManual = false;
+  double backdropAlignX = 0.0;
+  double backdropAlignY = 0.0;
   String? posterPath;
   String? synopsisEn;
   String? synopsisTranslated;
@@ -146,6 +148,8 @@ class Anime {
     this.imageUrl,
     this.backdropUrl,
     this.backdropManual = false,
+    this.backdropAlignX = 0.0,
+    this.backdropAlignY = 0.0,
     this.posterPath,
     this.synopsisEn,
     this.synopsisTranslated,
@@ -340,6 +344,8 @@ class Anime {
         'imageUrl': imageUrl,
         'backdropUrl': backdropUrl,
         'backdropManual': backdropManual,
+        'backdropAlignX': backdropAlignX,
+        'backdropAlignY': backdropAlignY,
         'posterPath': posterPath,
         'synopsisEn': synopsisEn,
         'synopsisTranslated': synopsisTranslated,
@@ -376,6 +382,8 @@ class Anime {
         imageUrl: j['imageUrl'] as String?,
         backdropUrl: j['backdropUrl'] as String?,
         backdropManual: j['backdropManual'] as bool? ?? false,
+        backdropAlignX: (j['backdropAlignX'] as num?)?.toDouble() ?? 0.0,
+        backdropAlignY: (j['backdropAlignY'] as num?)?.toDouble() ?? 0.0,
         posterPath: j['posterPath'] as String?,
         synopsisEn: j['synopsisEn'] as String?,
         synopsisTranslated: j['synopsisTranslated'] as String?,
