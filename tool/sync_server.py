@@ -80,6 +80,36 @@ def sign(secret, series, episode, expires, path):
     return hmac.new(secret.encode('utf-8'), data, hashlib.sha256).hexdigest()
 
 
+def ffmpeg_binary():
+    """Find FFmpeg bundled next to server.exe or installed in PATH."""
+    bundled = Path(sys.executable).resolve().parent / 'ffmpeg.exe'
+    if bundled.is_file():
+        return str(bundled)
+    local = Path(__file__).resolve().parent / 'ffmpeg.exe'
+    if local.is_file():
+        return str(local)
+    return shutil.which('ffmpeg')
+
+
+def stream_capabilities():
+    executable = ffmpeg_binary()
+    if not executable:
+        return {'ffmpeg': False, 'mode': 'direct', 'qualities': ['direct'],
+                'message': 'FFmpeg absent : lecture originale uniquement.'}
+    try:
+        probe = subprocess.run([executable, '-hide_banner', '-version'],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=4,
+            check=False, text=True)
+        if probe.returncode != 0:
+            raise OSError('ffmpeg failed')
+    except (OSError, subprocess.TimeoutExpired):
+        return {'ffmpeg': False, 'mode': 'direct', 'qualities': ['direct'],
+                'message': 'FFmpeg indisponible : lecture originale uniquement.'}
+    return {'ffmpeg': True, 'mode': 'transcoding',
+            'qualities': ['direct', '720', '480'],
+            'message': 'FFmpeg disponible : conversion 720p ou 480p possible.'}
+
+
 def handler_factory(lib, token):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
@@ -102,7 +132,7 @@ def handler_factory(lib, token):
             parsed = urlsplit(self.path)
             route = parsed.path
             query = parse_qs(parsed.query)
-            if route in ('/v1/ping', '/v1/library', '/v1/episodes', '/v1/ticket'):
+            if route in ('/v1/ping', '/v1/library', '/v1/episodes', '/v1/ticket', '/v1/capabilities'):
                 if not self.authorized():
                     self.reply(401, {'error': 'invalid_pairing_code'}); return
                 try:
@@ -110,6 +140,8 @@ def handler_factory(lib, token):
                         self.reply(200, {'service': 'Anime Organizer', 'version': 2, 'streaming': True})
                     elif route == '/v1/library':
                         self.reply(200, snapshot(lib))
+                    elif route == '/v1/capabilities':
+                        self.reply(200, stream_capabilities())
                     else:
                         series = int(query.get('series', ['-1'])[0])
                         catalog = read_library(lib)
@@ -232,8 +264,7 @@ def handler_factory(lib, token):
                 quality = query.get('quality', ['720'])[0]
                 if quality not in ('480', '720'):
                     self.reply(400, {'error': 'invalid_quality'}); return
-                executable = Path(sys.executable).resolve().parent / 'ffmpeg.exe'
-                ffmpeg = str(executable) if executable.is_file() else shutil.which('ffmpeg')
+                ffmpeg = ffmpeg_binary()
                 if not ffmpeg:
                     self.reply(503, {'error': 'ffmpeg_unavailable'}); return
                 # 480p/720p, débit limité. libx264 en premier, NVENC plus tard.

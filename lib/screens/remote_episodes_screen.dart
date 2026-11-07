@@ -25,6 +25,8 @@ class RemoteEpisodesScreen extends StatefulWidget {
 class _RemoteEpisodesScreenState extends State<RemoteEpisodesScreen> {
   bool _busy = true;
   String _quality = 'direct';
+  bool _ffmpegAvailable = false;
+  String _serverCapabilities = 'Vérification des qualités en cours…';
   String? _error;
   List<Map<String, dynamic>> _episodes = [];
 
@@ -32,10 +34,34 @@ class _RemoteEpisodesScreenState extends State<RemoteEpisodesScreen> {
   void initState() {
     super.initState();
     _load();
+    _loadCapabilities();
   }
 
   Uri _endpoint(String path, Map<String, String> params) =>
     Uri.http('${widget.host}:8765', path, params);
+
+  Future<void> _loadCapabilities() async {
+    try {
+      final response = await http.get(_endpoint('/v1/capabilities', {}),
+          headers: {'X-Anime-Pair-Code': widget.pairCode})
+          .timeout(const Duration(seconds: 6));
+      if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
+      final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() {
+        _ffmpegAvailable = data['ffmpeg'] == true;
+        _serverCapabilities = '${data['message'] ?? 'État du serveur inconnu.'}';
+        if (!_ffmpegAvailable) _quality = 'direct';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _ffmpegAvailable = false;
+        _quality = 'direct';
+        _serverCapabilities = 'Diagnostic indisponible : seul le mode original est proposé.';
+      });
+    }
+  }
 
   Future<void> _load() async {
     try {
@@ -106,14 +132,19 @@ class _RemoteEpisodesScreenState extends State<RemoteEpisodesScreen> {
                 const SizedBox(width: 8),
                 Expanded(child: DropdownButton<String>(isExpanded: true,
                   value: _quality,
-                  items: const [
-                    DropdownMenuItem(value: 'direct', child: Text('Originale (sans conversion)')),
-                    DropdownMenuItem(value: '720', child: Text('720p mobile (FFmpeg)')),
-                    DropdownMenuItem(value: '480', child: Text('480p économique (FFmpeg)')),
+                  items: [
+                    const DropdownMenuItem(value: 'direct', child: Text('Originale (sans conversion)')),
+                    if (_ffmpegAvailable) const DropdownMenuItem(value: '720', child: Text('720p mobile (FFmpeg)')),
+                    if (_ffmpegAvailable) const DropdownMenuItem(value: '480', child: Text('480p économique (FFmpeg)')),
                   ],
                   onChanged: _busy ? null : (v) { if (v != null) setState(() => _quality = v); },
                 )),
               ])),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Text(_serverCapabilities,
+                style: TextStyle(color: _ffmpegAvailable ? Palette.muted : Palette.kin)),
+            ),
             Expanded(child: ListView.builder(
             itemCount: _episodes.length,
             itemBuilder: (context, i) {
