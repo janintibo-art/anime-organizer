@@ -3,6 +3,8 @@ class AnimeMeta {
   final int? sourceId;
   final String source; // 'anilist' ou 'jikan'
   final String title;
+  // V23_AUTO_CATEGORY: origin, if actually supplied by a metadata provider.
+  final String? originLanguage;
   final String? titleNative;
   final String? titleRomaji;
   final String? imageUrl;

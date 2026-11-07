@@ -407,6 +407,20 @@ class LibraryController extends ChangeNotifier {
     await scan();
   }
 
+  // V23_AUTO_CATEGORY: only strong evidence sets a category.
+  static String _categoryFromMeta(AnimeMeta meta, String original) {
+    final t = MetadataService.stripAccents('$original ${meta.title}');
+    if (RegExp(r'\b(fritz (le chat|the cat)|south park|beavis|rick and morty|'
+        r'family guy|american dad|bojack horseman|big mouth|solar opposites)\b')
+        .hasMatch(t)) return 'adult';
+    if (meta.source == 'tvmaze') return 'western';
+    if (meta.source == 'tmdb' || meta.source == 'tmdb_movie') {
+      if (meta.originLanguage == 'ja') return 'anime';
+      if (meta.originLanguage != null && meta.originLanguage!.isNotEmpty) return 'western';
+    }
+    return _guessCategory(original);
+  }
+
   static String _guessCategory(String title) {
     final t = MetadataService.stripAccents(title);
     if (RegExp(r'\b(beavis and butt[- ]head|south park|family guy|american dad|rick and morty|'

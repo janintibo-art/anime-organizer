@@ -182,6 +182,22 @@ class MetadataService {
     int limit = 8,
     String tmdbKey = '',
   }) async {
+    // V23_AUTO_CATEGORY: conservative animated-film and TV cross-search.
+    if (source == 'animation') {
+      final out = <AnimeMeta>[];
+      if (tmdbKey.trim().isNotEmpty) {
+        out.addAll(await TmdbApi.search(title, tmdbKey, limit: limit));
+        out.addAll(await TmdbApi.searchAnimatedMovies(title, tmdbKey, limit: limit));
+      }
+      out.addAll(await TvmazeApi.search(title, limit: limit));
+      // Japanese results are considered too, even for unknown categories.
+      out.addAll(await AniListApi.searchMany(title, limit: limit));
+      final dedup = <String>{};
+      final results = out.where((m) => dedup.add('${m.source}:${m.sourceId ?? m.title}'))
+          .toList()
+        ..sort((a,b) => score(b, title, null).compareTo(score(a, title, null)));
+      return results.take(limit).toList();
+    }
     switch (source) {
       case 'anilist':
         return AniListApi.searchMany(title, limit: limit);

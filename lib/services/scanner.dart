@@ -197,6 +197,19 @@ class Scanner {
     return sorted.first.key;
   }
 
+  // V23_AUTO_CATEGORY: a movie or isolated video need not be S01E01.
+  static String? identificationTitle(List<Episode> episodes, String folderTitle) {
+    final consensus = titleFromFiles(episodes);
+    if (consensus != null) return consensus;
+    if (episodes.length == 1) {
+      final raw = p.basenameWithoutExtension(episodes.single.path);
+      final title = cleanTitle(raw).replaceAll(RegExp(r'[._]+'), ' ').trim();
+      if (title.length >= 4) return title;
+    }
+    final folder = cleanTitle(folderTitle);
+    return folder.trim().length >= 4 ? folder.trim() : null;
+  }
+
   /// Tri naturel : « Episode 2 » avant « Episode 10 ».
   static int naturalCompare(String a, String b) {
     final ma = _digits.allMatches(a).toList();

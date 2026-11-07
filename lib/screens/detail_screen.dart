@@ -227,12 +227,13 @@ class _DetailScreenState extends State<DetailScreen> {
     if (query == null || query.isEmpty) return;
 
     setState(() => _working = true);
+    // V23_AUTO_CATEGORY: matching searches all catalogs, including animated films.
     // Si la catégorie a été mal détectée, la correction doit aussi
     // proposer les résultats occidentaux (TMDB + TVmaze).
     final western = anime.category == 'western' || anime.category == 'adult';
     final primary = await MetadataService.searchMany(
       query,
-      source: western ? 'western' : library.settings.metaSource,
+      source: 'animation',
       tmdbKey: library.settings.tmdbKey,
     );
     final alternatives = western

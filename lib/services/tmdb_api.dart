@@ -95,6 +95,38 @@ class TmdbApi {
     return _parse(body, 40);
   }
 
+  // V23_AUTO_CATEGORY: feature films are NOT in /search/tv.
+  // Only request film results explicitly tagged Animation (genre 16).
+  static Future<List<AnimeMeta>> searchAnimatedMovies(
+      String title, String apiKey, {int limit = 8}) async {
+    if (apiKey.trim().isEmpty || title.trim().isEmpty) return const [];
+    final body = await _get('/3/search/movie', apiKey, {
+      'query': title.trim(), 'include_adult': 'true',
+    });
+    if (body == null) return const [];
+    final results = (body['results'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((m) => (m['genre_ids'] as List? ?? const []).contains(16))
+        .take(limit);
+    return results.map((item) {
+      final poster = item['poster_path']?.toString();
+      final date = item['release_date']?.toString();
+      return AnimeMeta(
+        source: 'tmdb_movie', sourceId: item['id'] as int?,
+        title: (item['title'] ?? item['original_title'] ?? '').toString(),
+        titleRomaji: item['original_title']?.toString(),
+        originLanguage: item['original_language']?.toString(),
+        imageUrl: poster == null || poster.isEmpty ? null : '$_imageBase$poster',
+        synopsis: item['overview']?.toString(), genres: const ['Animation'],
+        score: (item['vote_average'] as num?)?.toDouble(),
+        popularity: (item['popularity'] as num?)?.round(),
+        year: date == null || date.length < 4 ? null : int.tryParse(date.substring(0, 4)),
+        type: 'MOVIE', episodes: 1,
+      );
+    }).where((m) => m.title.isNotEmpty).toList();
+  }
+
   static List<AnimeMeta> _parse(Map<String, dynamic>? body, int limit) {
     if (body == null) return const [];
     final results = body['results'] as List? ?? const [];
