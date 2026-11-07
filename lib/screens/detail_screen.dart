@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import '../models/anime.dart';
@@ -18,6 +19,7 @@ import '../services/library_controller.dart';
 import '../services/backdrop_service.dart';
 import '../services/capture_gallery.dart';
 import '../services/theme_audio_service.dart';
+import '../services/anime_themes_catalog.dart';
 import '../services/metadata_service.dart';
 import '../services/scanner.dart';
 import '../widgets/poster_image.dart';
@@ -175,6 +177,74 @@ class _DetailScreenState extends State<DetailScreen> {
     }
   }
 
+  // V33: identification des génériques via AnimeThemes.moe.
+  // On affiche les metadonnees et le lien officiel : pas de telechargement
+  // automatique de fichiers tiers sous droits.
+  Future<void> _findThemesOnline() async {
+    final titles = <String>{
+      if (anime.romajiTitle != null) anime.romajiTitle!,
+      if (anime.apiTitle != null) anime.apiTitle!,
+      anime.folderTitle,
+    }.where((v) => v.trim().isNotEmpty).toList();
+    if (titles.isEmpty) return;
+    setState(() => _themeBusy = true);
+    List<AnimeThemeMatch> matches = [];
+    try {
+      for (final title in titles) {
+        matches = await AnimeThemesCatalog.search(title);
+        if (matches.isNotEmpty) break;
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Recherche AnimeThemes impossible : $e')));
+    } finally {
+      if (mounted) setState(() => _themeBusy = false);
+    }
+    if (!mounted) return;
+    if (matches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aucun générique trouvé dans AnimeThemes.')));
+      return;
+    }
+    final picked = await showDialog<AnimeThemeMatch>(context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Choisir la série AnimeThemes'),
+        content: SizedBox(width: 460, height: 370,
+          child: ListView(children: [for (final item in matches)
+            ListTile(title: Text(item.name), subtitle: Text(item.year?.toString() ?? ''),
+              onTap: () => Navigator.pop(ctx, item))])),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx),
+          child: const Text('Annuler'))],
+      ));
+    if (picked == null || !mounted) return;
+    List<AnimeThemeEntry> songs = [];
+    try {
+      songs = await AnimeThemesCatalog.themes(picked.slug);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Génériques indisponibles : $e')));
+    }
+    if (!mounted) return;
+    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+      title: Text('Génériques · ${picked.name}'),
+      content: SizedBox(width: 470, height: 350, child: ListView(children: [
+        if (songs.isEmpty) const Text('Liste indisponible. Consulte le catalogue.'),
+        for (final song in songs)
+          ListTile(leading: const Icon(Icons.music_note),
+            title: Text('${song.label} · ${song.title}')),
+        const Padding(padding: EdgeInsets.all(12), child: Text(
+          'Le catalogue identifie les génériques. Pour utiliser une musique sur la fiche, importe ton propre audio ou extrais un épisode avec F4.')),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer')),
+        FilledButton(onPressed: () async {
+          final uri = Uri.https('animethemes.moe', '/anime/${picked.slug}');
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }, child: const Text('Ouvrir AnimeThemes')),
+      ],
+    ));
+  }
+
   Future<void> _themeOptions() async {
     await showModalBottomSheet<void>(context: context,
       isScrollControlled: true, backgroundColor: Palette.surface,
@@ -190,6 +260,13 @@ class _DetailScreenState extends State<DetailScreen> {
             if (_themeError != null)
               Text(_themeError!, style: const TextStyle(color: Colors.orangeAccent)),
             if (_themeBusy) const LinearProgressIndicator(),
+            ListTile(leading: const Icon(Icons.search),
+              title: const Text('Rechercher automatiquement les génériques'),
+              subtitle: const Text('Catalogue AnimeThemes · OP et ED'),
+              onTap: _themeBusy ? null : () async {
+                Navigator.pop(ctx);
+                await _findThemesOnline();
+              }),
             ListTile(leading: const Icon(Icons.audio_file),
               title: const Text('Importer un fichier audio'),
               onTap: _themeBusy ? null : () async {

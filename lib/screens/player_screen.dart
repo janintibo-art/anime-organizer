@@ -17,6 +17,7 @@ import '../services/library_controller.dart';
 import '../services/opensubtitles_api.dart';
 import '../services/poster_cache.dart';
 import '../services/capture_gallery.dart';
+import '../services/theme_audio_service.dart';
 import '../services/video_hash.dart';
 
 class PlayerScreen extends StatefulWidget {
@@ -114,6 +115,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _persist();
       setState(() {
         _index = event.index;
+        _audioMarkStart = null;
+        _audioMarkEpisodePath = null;
         _position = Duration.zero;
         _duration = Duration.zero;
         _seeked = true;
@@ -564,6 +567,66 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // Certains pilotes Media Kit rendent une ancienne image avec screenshot()
   // lorsque la video est en pause / plein ecran.
   bool _captureBusy = false;
+  // V33: marqueurs de debut/fin, enregistrés sur le fichier video courant.
+  Duration? _audioMarkStart;
+  String? _audioMarkEpisodePath;
+  bool _audioExportBusy = false;
+
+  Future<void> _markAudioF4() async {
+    final anime = widget.anime;
+    if (!Platform.isWindows || anime == null || widget.episodes.isEmpty) {
+      if (mounted) _flash('F4 : extraction disponible pour les épisodes locaux sur Windows.');
+      return;
+    }
+    if (_audioExportBusy) {
+      if (mounted) _flash('Extraction audio en cours...');
+      return;
+    }
+    final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+    final now = _player.state.position;
+    final begin = _audioMarkStart;
+    if (begin == null || _audioMarkEpisodePath != episode.path) {
+      setState(() {
+        _audioMarkStart = now;
+        _audioMarkEpisodePath = episode.path;
+      });
+      _flash('F4 : debut memorise a ${_formatAudioTime(now)}. F4 pour terminer.');
+      return;
+    }
+    if (now <= begin || now - begin > const Duration(minutes: 5)) {
+      _flash('F4 : choisis une fin apres le debut (5 min maximum).');
+      return;
+    }
+    setState(() {
+      _audioMarkStart = null;
+      _audioMarkEpisodePath = null;
+      _audioExportBusy = true;
+    });
+    _flash('F4 : extraction MP3 en cours...');
+    try {
+      final path = await ThemeAudioService.extractEpisode(anime, episode, begin, now);
+      anime.themeAudioPath = path;
+      await library.save();
+      library.refresh();
+      if (mounted) {
+        _flash('F4 : extrait enregistre comme musique de la fiche !');
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: Duration(seconds: 5),
+          content: Text('Musique enregistree ! Elle sera jouee sur la fiche de cet anime.'),
+        ));
+      }
+    } catch (e) {
+      if (mounted) _flash('F4 : extraction impossible : $e');
+    } finally {
+      if (mounted) setState(() => _audioExportBusy = false);
+    }
+  }
+
+  String _formatAudioTime(Duration value) {
+    final m = value.inMinutes.toString().padLeft(2, '0');
+    final s = (value.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
 
   // V31: extraction a la position du lecteur, avec ffmpeg fourni par le build.
   // Pour un fichier Windows local, ne jamais revenir silencieusement au
@@ -895,6 +958,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       unawaited(_captureForGallery(useAsPanorama: true));
       return true;
     }
+    if (key == LogicalKeyboardKey.f4) {
+      unawaited(_markAudioF4());
+      return true;
+    }
     return false;
   }
 
@@ -907,6 +974,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       unawaited(_captureForGallery());
     } else if (key == LogicalKeyboardKey.f3) {
       unawaited(_captureForGallery(useAsPanorama: true));
+    } else if (key == LogicalKeyboardKey.f4) {
+      if (!Platform.isWindows) unawaited(_markAudioF4());
     } else if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
       _player.playOrPause();
     } else if (key == LogicalKeyboardKey.arrowRight) {
@@ -1042,6 +1111,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         onPressed: () => setState(() => _locked = false),
                         icon: const Icon(Icons.lock_open,
                             color: Colors.white),
+                      ),
+                    ),
+                  if (_audioMarkStart != null)
+                    Positioned(
+                      top: 65,
+                      left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xE67C2418),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text('● F4 début ${_formatAudioTime(_audioMarkStart!)} · F4 pour terminer',
+                          style: const TextStyle(color: Colors.white, fontSize: 13)),
                       ),
                     ),
                   if (_notice != null)
@@ -1206,6 +1289,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       icon: const Icon(Icons.wallpaper_outlined),
                       label: const Text('Capturer comme panorama principal (F3)'),
                     ),
+                    if (Platform.isWindows) ...[
+                      const SizedBox(height: 6),
+                      OutlinedButton.icon(
+                        onPressed: () { Navigator.pop(ctx); unawaited(_markAudioF4()); },
+                        icon: const Icon(Icons.music_note_outlined),
+                        label: const Text('F4 : marquer début / fin du générique audio'),
+                      ),
+                    ],
                   ],
                   _optionTitle('Ajustement de l\'image'),
                   _choices(
