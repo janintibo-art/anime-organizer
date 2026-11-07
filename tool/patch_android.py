@@ -97,6 +97,11 @@ def patch_manifest():
         r'android:label="[^"]*"', 'android:label="Anime Organizer"', content, count=1
     )
 
+    # Allow local HTTP from the app; access is protected by a pairing code.
+    if 'android:usesCleartextTraffic=' not in content:
+        content = content.replace('<application',
+            '<application android:usesCleartextTraffic="true"', 1)
+
     with open(MANIFEST, "w", encoding="utf-8") as f:
         f.write(content)
 

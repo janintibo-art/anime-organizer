@@ -10,6 +10,7 @@ import '../widgets/anime_card.dart';
 import 'detail_screen.dart';
 import 'folder_picker_screen.dart';
 import 'settings_screen.dart';
+import 'pc_sync_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -148,6 +149,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: Platform.isWindows ? 'Serveur de synchronisation' : 'Se connecter au PC',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PcSyncScreen())),
+                icon: const Icon(Icons.sync_alt),
+              ),
               IconButton(
                 tooltip: 'Ajouter un dossier',
                 onPressed: _addFolder,
