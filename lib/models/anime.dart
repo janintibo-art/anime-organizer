@@ -107,6 +107,8 @@ class Anime {
   String? themeAudioPath;
   bool themeAutoplay = true;
   bool themeLoop = true;
+  // V34: single, sequence ou shuffle.
+  String themePlayMode = 'single';
   double themeVolume = 25.0;
   String? backdropLocalPath; // V25: image personnelle copiee dans le stockage de l’application.
   bool backdropManual = false;
@@ -184,6 +186,7 @@ class Anime {
     this.themeAudioPath,
     this.themeAutoplay = true,
     this.themeLoop = true,
+    this.themePlayMode = 'single',
     this.themeVolume = 25.0,
     this.backdropManual = false,
     this.backdropAlignX = 0.0,
@@ -391,6 +394,7 @@ class Anime {
         'themeAudioPath': themeAudioPath,
         'themeAutoplay': themeAutoplay,
         'themeLoop': themeLoop,
+        'themePlayMode': themePlayMode,
         'themeVolume': themeVolume,
         'backdropManual': backdropManual,
         'backdropAlignX': backdropAlignX,
@@ -438,6 +442,8 @@ class Anime {
         themeAudioPath: j['themeAudioPath'] as String?,
         themeAutoplay: j['themeAutoplay'] as bool? ?? true,
         themeLoop: j['themeLoop'] as bool? ?? true,
+        themePlayMode: ['single', 'sequence', 'shuffle'].contains(j['themePlayMode'])
+            ? j['themePlayMode'] as String : 'single',
         themeVolume: (j['themeVolume'] as num? ?? 25).toDouble().clamp(0, 100).toDouble(),
         backdropManual: j['backdropManual'] as bool? ?? false,
         backdropAlignX: (j['backdropAlignX'] as num?)?.toDouble() ?? 0.0,

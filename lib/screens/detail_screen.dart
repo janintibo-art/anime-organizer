@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui' as ui;
 // V28_GALLERY_VISUELLE: aperçus, ordre, suppression et ouverture du dossier.
 
@@ -49,6 +50,10 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _themeBusy = false;
   Timer? _themeFade;
   String? _themeError;
+  StreamSubscription<bool>? _themeCompletedSubscription;
+  final _random = Random();
+  bool _themeAdvancing = false;
+  String? _currentThemeClip;
 
   Future<void> _stopTheme() async {
     _themeFade?.cancel();
@@ -56,8 +61,8 @@ class _DetailScreenState extends State<DetailScreen> {
     if (mounted) setState(() => _themePlaying = false);
   }
 
-  Future<void> _playTheme({bool force = false}) async {
-    final path = anime.themeAudioPath;
+  Future<void> _playTheme({bool force = false, String? clip}) async {
+    final path = clip ?? anime.themeAudioPath;
     if (path == null || path.isEmpty || (!force && !anime.themeAutoplay)) return;
     if (!await File(path).exists()) {
       if (mounted) setState(() => _themeError = 'Musique introuvable.');
@@ -66,8 +71,10 @@ class _DetailScreenState extends State<DetailScreen> {
     _themeFade?.cancel();
     try {
       await _themePlayer.setPlaylistMode(
-          anime.themeLoop ? PlaylistMode.single : PlaylistMode.none);
+          anime.themePlayMode == 'single' && anime.themeLoop
+              ? PlaylistMode.single : PlaylistMode.none);
       await _themePlayer.setVolume(0);
+      _currentThemeClip = path;
       await _themePlayer.open(Media(Uri.file(path).toString()));
       if (!mounted) return;
       setState(() { _themePlaying = true; _themeError = null; });
@@ -84,6 +91,142 @@ class _DetailScreenState extends State<DetailScreen> {
     } catch (e) {
       if (mounted) setState(() => _themeError = 'Lecture audio impossible : $e');
     }
+  }
+
+  // V34 : le morceau suivant ne demarre que si la fiche est encore ouverte.
+  Future<void> _advanceTheme() async {
+    if (_themeAdvancing || !_themePlaying || anime.themePlayMode == 'single') return;
+    _themeAdvancing = true;
+    try {
+      final tracks = await ThemeAudioService.listClips(anime);
+      if (!mounted || tracks.isEmpty) return;
+      final current = _currentThemeClip ?? anime.themeAudioPath;
+      final index = tracks.indexOf(current ?? '');
+      final next = anime.themePlayMode == 'shuffle' && tracks.length > 1
+          ? tracks[(_random.nextInt(tracks.length - 1) + (index < 0 ? 0 : index + 1)) % tracks.length]
+          : tracks[(index + 1) % tracks.length];
+      await _playTheme(force: true, clip: next);
+    } catch (e) {
+      if (mounted) setState(() => _themeError = 'Lecture suivante impossible : $e');
+    } finally {
+      _themeAdvancing = false;
+    }
+  }
+
+  Future<void> _audioLibraryOptions() async {
+    final clips = await ThemeAudioService.listClips(anime);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(context: context,
+      isScrollControlled: true, backgroundColor: Palette.surface,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, redraw) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * .83),
+          child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(16), children: [
+            const Text('Bibliothèque sonore', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 5),
+            Text('${clips.length} extrait(s) conservé(s) dans le dossier de cet animé'),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: anime.themePlayMode,
+              decoration: const InputDecoration(labelText: 'Mode de lecture'),
+              items: const [
+                DropdownMenuItem(value: 'single', child: Text('Extrait choisi (fixe)')),
+                DropdownMenuItem(value: 'sequence', child: Text('À la suite')),
+                DropdownMenuItem(value: 'shuffle', child: Text('Aléatoire')),
+              ], onChanged: (mode) async {
+                if (mode == null) return;
+                anime.themePlayMode = mode;
+                await _themePlayer.setPlaylistMode(mode == 'single' && anime.themeLoop
+                    ? PlaylistMode.single : PlaylistMode.none);
+                await library.save();
+                if (ctx.mounted) redraw(() {});
+              }),
+            const SizedBox(height: 10),
+            if (clips.isEmpty) const ListTile(title: Text('Aucun extrait pour le moment'),
+              subtitle: Text('Importe un morceau ou utilise F4 deux fois dans un épisode.')),
+            for (final file in List<String>.from(clips))
+              Card(child: ListTile(
+                dense: true,
+                leading: Icon(anime.themeAudioPath == file
+                    ? Icons.radio_button_checked : Icons.music_note),
+                title: Text(p.basename(file), maxLines: 2, overflow: TextOverflow.ellipsis),
+                subtitle: anime.themeAudioPath == file
+                    ? const Text('Extrait principal') : null,
+                onTap: () async {
+                  await _stopTheme();
+                  anime.themeAudioPath = file;
+                  await library.save();
+                  if (mounted) await _playTheme(force: true);
+                  if (ctx.mounted) redraw(() {});
+                },
+                trailing: PopupMenuButton<String>(
+                  tooltip: 'Gérer cet extrait',
+                  onSelected: (action) async {
+                    if (action == 'rename') {
+                      final controller = TextEditingController(
+                          text: p.basenameWithoutExtension(file));
+                      final name = await showDialog<String>(context: ctx,
+                        builder: (dialogCtx) => AlertDialog(
+                          title: const Text('Renommer l’extrait'),
+                          content: TextField(controller: controller, autofocus: true,
+                            decoration: const InputDecoration(labelText: 'Nom du morceau')),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(dialogCtx),
+                                child: const Text('Annuler')),
+                            FilledButton(onPressed: () => Navigator.pop(dialogCtx, controller.text),
+                                child: const Text('Renommer')),
+                          ],
+                        ));
+                      controller.dispose();
+                      if (name == null || name.trim().isEmpty) return;
+                      try {
+                        if (anime.themeAudioPath == file) await _stopTheme();
+                        final renamed = await ThemeAudioService.renameClip(anime, file, name);
+                        if (anime.themeAudioPath == file) anime.themeAudioPath = renamed;
+                        clips[clips.indexOf(file)] = renamed;
+                        clips.sort();
+                        await library.save();
+                      } catch (e) {
+                        if (mounted) setState(() => _themeError = '$e');
+                      }
+                    } else if (action == 'delete') {
+                      final ok = await showDialog<bool>(context: ctx,
+                        builder: (dialogCtx) => AlertDialog(
+                          title: const Text('Supprimer cet extrait ?'),
+                          content: Text(p.basename(file)), actions: [
+                            TextButton(onPressed: () => Navigator.pop(dialogCtx, false),
+                              child: const Text('Annuler')),
+                            FilledButton(onPressed: () => Navigator.pop(dialogCtx, true),
+                              child: const Text('Supprimer')),
+                          ]));
+                      if (ok != true) return;
+                      try {
+                        if (anime.themeAudioPath == file) await _stopTheme();
+                        await ThemeAudioService.deleteClip(anime, file);
+                        clips.remove(file);
+                        if (anime.themeAudioPath == file) {
+                          anime.themeAudioPath = clips.isEmpty ? null : clips.first;
+                        }
+                        await library.save();
+                      } catch (e) {
+                        if (mounted) setState(() => _themeError = '$e');
+                      }
+                    }
+                    if (mounted) setState(() {});
+                    if (ctx.mounted) redraw(() {});
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'rename', child: Text('Renommer')),
+                    PopupMenuItem(value: 'delete', child: Text('Supprimer')),
+                  ],
+                ),
+              )),
+            const SizedBox(height: 10),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer')),
+          ]),
+        ),
+      )),
+    );
   }
 
   Future<void> _toggleTheme() async {
@@ -260,6 +403,13 @@ class _DetailScreenState extends State<DetailScreen> {
             if (_themeError != null)
               Text(_themeError!, style: const TextStyle(color: Colors.orangeAccent)),
             if (_themeBusy) const LinearProgressIndicator(),
+            ListTile(leading: const Icon(Icons.library_music_outlined),
+              title: const Text('Bibliothèque des extraits'),
+              subtitle: const Text('Choisir, renommer, supprimer ou lire plusieurs morceaux'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _audioLibraryOptions();
+              }),
             ListTile(leading: const Icon(Icons.search),
               title: const Text('Rechercher automatiquement les génériques'),
               subtitle: const Text('Catalogue AnimeThemes · OP et ED'),
@@ -289,7 +439,7 @@ class _DetailScreenState extends State<DetailScreen> {
             SwitchListTile(title: const Text('Répéter en boucle'),
               value: anime.themeLoop, onChanged: (v) async {
                 anime.themeLoop = v;
-                await _themePlayer.setPlaylistMode(v
+                await _themePlayer.setPlaylistMode(v && anime.themePlayMode == 'single'
                     ? PlaylistMode.single : PlaylistMode.none);
                 await library.save(); if (ctx.mounted) redraw(() {});
               }),
@@ -503,6 +653,9 @@ class _DetailScreenState extends State<DetailScreen> {
     super.initState();
     unawaited(_loadBackdrop());
     unawaited(_reloadGallery());
+    _themeCompletedSubscription = _themePlayer.stream.completed.listen((done) {
+      if (done && mounted && _themePlaying) unawaited(_advanceTheme());
+    });
     unawaited(_playTheme());
   }
 
@@ -510,6 +663,7 @@ class _DetailScreenState extends State<DetailScreen> {
   void dispose() {
     _slideshowTimer?.cancel();
     _themeFade?.cancel();
+    _themeCompletedSubscription?.cancel();
     unawaited(_themePlayer.dispose());
     super.dispose();
   }

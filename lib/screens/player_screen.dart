@@ -609,10 +609,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       await library.save();
       library.refresh();
       if (mounted) {
-        _flash('F4 : extrait enregistre comme musique de la fiche !');
+        _flash('F4 : nouvel extrait conserve dans la bibliotheque musicale !');
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           duration: Duration(seconds: 5),
-          content: Text('Musique enregistree ! Elle sera jouee sur la fiche de cet anime.'),
+          content: Text('Nouvel extrait enregistre : ${p.basename(path)}'),
         ));
       }
     } catch (e) {
