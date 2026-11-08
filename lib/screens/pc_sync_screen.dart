@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import '../services/library_controller.dart';
@@ -326,6 +327,78 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
     }
   }
 
+  // Guide first connection: public, official Tailscale downloads only.
+  Future<void> _openTailscale(String url) async {
+    final uri = Uri.parse(url);
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossible d’ouvrir le lien : $url')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossible d’ouvrir le lien : $url')),
+        );
+      }
+    }
+  }
+
+  Widget _tailscaleGuide(bool windows) {
+    final steps = windows
+        ? <String>[
+            'Installe Tailscale sur ce PC Windows, puis connecte-toi à ton compte.',
+            'Installe Tailscale sur le téléphone et utilise le même compte.',
+            'Vérifie que Tailscale indique « Connecté » sur les deux appareils.',
+            'Dans Anime Organizer sur PC, clique sur « Démarrer le serveur ».',
+            'Sur Android, indique l’adresse Tailscale du PC (souvent 100.x.x.x) et le code affiché ici.',
+            'Appuie sur « Se connecter ». L’association sera mémorisée.',
+          ]
+        : <String>[
+            'Installe Tailscale sur Android et sur le PC Windows.',
+            'Connecte les deux appareils au même compte Tailscale et active la connexion.',
+            'Sur le PC, ouvre Anime Organizer > Synchronisation puis « Démarrer le serveur ».',
+            'Récupère l’adresse Tailscale du PC (100.x.x.x ou nom .ts.net) et le code d’association.',
+            'Saisis-les ci-dessous, puis appuie sur « Se connecter ».',
+            'La connexion est mémorisée : tu n’auras normalement pas à retaper le code.',
+          ];
+    return Card(
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        leading: const Icon(Icons.help_outline),
+        title: const Text('Première connexion : petit tuto Tailscale'),
+        subtitle: const Text('Installation gratuite et association PC / Android'),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          ...steps.asMap().entries.map((entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SizedBox(width: 24, child: Text('${entry.key + 1}.',
+                      style: const TextStyle(fontWeight: FontWeight.bold))),
+                  Expanded(child: Text(entry.value)),
+                ]),
+              )),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: () => _openTailscale('https://tailscale.com/download/windows'),
+            icon: const Icon(Icons.computer),
+            label: const Text('Télécharger Tailscale pour Windows'),
+          ),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: () => _openTailscale('https://play.google.com/store/apps/details?id=com.tailscale.ipn'),
+            icon: const Icon(Icons.phone_android),
+            label: const Text('Installer Tailscale sur Android'),
+          ),
+          const SizedBox(height: 10),
+          const Text('À savoir : le PC doit rester allumé, Anime Organizer doit servir les vidéos et Tailscale doit être connecté sur les deux appareils.'),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _server?.kill();
@@ -346,6 +419,8 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
           ? 'Démarre le serveur sur ton PC, puis saisis les informations affichées dans l’APK Android. Le serveur s’arrête quand tu quittes cet écran.'
           : 'Accede a ton PC de partout via Tailscale, meme en 4G. Colle une invitation une seule fois, puis la connexion est memorisee. Le PC doit rester allume et le serveur demarre.',
           style: TextStyle(color: Palette.muted)),
+        const SizedBox(height: 12),
+        _tailscaleGuide(windows),
         const SizedBox(height: 20),
         if (windows) ...[
           Text('PC sur Tailscale : ${_tailHost.isEmpty ? 'Tailscale non detecte' : _tailHost}'),

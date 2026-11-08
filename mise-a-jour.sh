@@ -1,11 +1,13 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 cd "$HOME/anime_organizer"
-if [ ! -d .git ]; then echo 'Depot Git introuvable dans ~/anime_organizer'; exit 1; fi
-python tool/apply_update_v4.py
-# Ne jamais inclure de caches Python dans les commits.
-find tool -type d -name __pycache__ -prune -exec rm -rf {} +
-git add lib/models/anime.dart lib/services/library_controller.dart lib/services/backdrop_service.dart lib/screens/detail_screen.dart .github/workflows/build.yml docs/ README.md tool/apply_update_v4.py mise-a-jour.sh
-if git diff --cached --quiet; then echo 'Rien a publier.'; exit 0; fi
-git commit -m 'V4 - galerie panoramique et site officiel avec Releases'
-git push origin HEAD:main
+python tool/apply_update_v22.py
+python -m py_compile tool/sync_server.py tool/apply_update_v22.py
+git add lib/screens/player_screen.dart lib/screens/remote_episodes_screen.dart lib/screens/pc_sync_screen.dart tool/sync_server.py
+git diff --cached --check
+if ! git diff --cached --quiet; then
+  git commit -m "V22: journal de progression Android et import Windows"
+  git push origin HEAD:main
+else
+  echo 'V22 deja appliquee ou aucune modification a publier.'
+fi
