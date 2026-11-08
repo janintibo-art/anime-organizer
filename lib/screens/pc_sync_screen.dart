@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../main.dart';
 import '../services/library_controller.dart';
+import '../services/remote_library.dart';
 import 'remote_episodes_screen.dart';
 
 /// Windows: launches the bundled Python companion. Android: LAN catalogue and
@@ -230,6 +231,8 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
       final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final items = body['series'] as List? ?? [];
       _remote = items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      // L'accueil affiche désormais aussi le catalogue distant.
+      await remoteLibrary.useCatalogue(host, token, _remote);
       _message = '${_remote.length} séries reçues depuis le PC. Aucune vidéo transférée.';
       if (Platform.isAndroid) {
         final saved = await _pairingFile('android_pc_pair_v39.json');

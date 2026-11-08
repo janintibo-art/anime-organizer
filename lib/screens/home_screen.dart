@@ -6,6 +6,8 @@ import 'package:permission_handler/permission_handler.dart';
 import '../main.dart';
 import '../models/anime.dart';
 import '../services/library_controller.dart';
+import '../services/remote_library.dart';
+import 'remote_episodes_screen.dart';
 import '../widgets/anime_card.dart';
 import 'detail_screen.dart';
 import 'folder_picker_screen.dart';
@@ -22,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   String _query = '';
+  String _source = 'all'; // all | local | pc
   String _genre = '';
   String _category = ''; // '' | anime | western | adult | other
   bool _favoritesOnly = false;
@@ -39,7 +42,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startupScan());
+    remoteLibrary.addListener(_remoteUpdated);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startupScan();
+      remoteLibrary.initialize();
+    });
   }
 
   Future<void> _startupScan() async {
@@ -62,8 +69,11 @@ class _HomeScreenState extends State<HomeScreen> {
         .showSnackBar(SnackBar(content: Text(messages.join(' · '))));
   }
 
+  void _remoteUpdated() { if (mounted) setState(() {}); }
+
   @override
   void dispose() {
+    remoteLibrary.removeListener(_remoteUpdated);
     _searchController.dispose();
     super.dispose();
   }
@@ -194,12 +204,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   foregroundColor: Colors.white,
                   child: const Icon(Icons.create_new_folder_outlined),
                 ),
-          body: library.animes.isEmpty && !library.busy
+          body: library.animes.isEmpty && remoteLibrary.series.isEmpty && !remoteLibrary.loading && remoteLibrary.host.isEmpty && !library.busy
               ? _emptyState()
               : Column(
                   children: [
                     if (library.busy) _progressBar(),
-                    if (library.animes.isNotEmpty) _filters(),
+                    if (library.animes.isNotEmpty || remoteLibrary.series.isNotEmpty) _filters(),
                     Expanded(child: _content()),
                   ],
                 ),
@@ -211,6 +221,114 @@ class _HomeScreenState extends State<HomeScreen> {
   // ---------------------------------------------------------------- contenu
 
   Widget _content() {
+    final remote = remoteLibrary.series.where((item) {
+      if (_query.trim().isNotEmpty) {
+        final q = _query.trim().toLowerCase();
+        if (!['title', 'folderTitle', 'frenchTitle', 'romajiTitle']
+            .any((key) => '${item[key] ?? ''}'.toLowerCase().contains(q))) return false;
+      }
+      if (_favoritesOnly && item['favorite'] != true) return false;
+      if (_collection == 'done' &&
+          (item['watchedCount'] ?? 0) != (item['episodeCount'] ?? -1)) return false;
+      if (_collection == 'todo' && (item['watchedCount'] ?? 0) != 0) return false;
+      if (_collection == 'watching' &&
+          ((item['watchedCount'] ?? 0) == 0 ||
+           (item['watchedCount'] ?? 0) == (item['episodeCount'] ?? -1))) return false;
+      // Le serveur ne transmet pas encore genre, catégorie et VF : ne pas
+      // inventer de métadonnées pour répondre à ces filtres.
+      if (_genre.isNotEmpty || _category.isNotEmpty || _vfOnly) return false;
+      return true;
+    }).toList();
+    final showRemote = Platform.isAndroid && _source != 'local';
+    final showLocal = _source != 'pc';
+    if (!showLocal) return _remoteList(remote);
+    if (!showRemote || remote.isEmpty) {
+      if (showRemote && library.animes.isEmpty &&
+          (remoteLibrary.loading || remoteLibrary.host.isNotEmpty)) {
+        return _remoteList(remote);
+      }
+      return _localContent();
+    }
+    var localItems = library.view(query: _query, genre: _genre,
+        favoritesOnly: _favoritesOnly, vfOnly: _vfOnly);
+    if (_category.isNotEmpty) {
+      localItems = localItems.where((a) => a.category == _category).toList();
+    }
+    if (_collection.isNotEmpty) {
+      localItems = localItems.where((a) => a.collection == _collection).toList();
+    }
+    return CustomScrollView(slivers: [
+      SliverToBoxAdapter(child: _remoteStatus()),
+      _sectionHeader('Bibliothèque du PC', remote.length),
+      SliverList(delegate: SliverChildBuilderDelegate(
+        (_, i) => _remoteTile(remote[i]), childCount: remote.length)),
+      if (localItems.isNotEmpty) ...[
+        _sectionHeader('Sur ce téléphone', localItems.length),
+        SliverList(delegate: SliverChildBuilderDelegate((_, i) =>
+          AnimeRow(anime: localItems[i], onTap: () => _open(localItems[i])),
+          childCount: localItems.length)),
+      ],
+      const SliverToBoxAdapter(child: SizedBox(height: 90)),
+    ]);
+  }
+
+  Widget _remoteStatus() => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+    child: Row(children: [
+      Icon(remoteLibrary.connected ? Icons.cloud_done_outlined :
+        Icons.cloud_off_outlined, color: remoteLibrary.connected ?
+        Palette.kin : Palette.muted, size: 19),
+      const SizedBox(width: 8),
+      Expanded(child: Text(remoteLibrary.connected
+        ? 'PC connecté · ${remoteLibrary.series.length} séries'
+        : 'PC hors ligne · catalogue mémorisé',
+        style: TextStyle(color: Palette.muted))),
+      IconButton(tooltip: 'Actualiser le catalogue PC',
+        onPressed: remoteLibrary.loading ? null : remoteLibrary.refresh,
+        icon: remoteLibrary.loading
+          ? const SizedBox(width: 18, height: 18, child:
+              CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.refresh)),
+    ]),
+  );
+
+  Widget _remoteTile(Map<String, dynamic> item) {
+    final imageUrl = '${item['imageUrl'] ?? ''}';
+    final title = '${item['title'] ?? item['folderTitle'] ?? 'Sans titre'}';
+    final id = item['id'] as int;
+    return ListTile(
+      leading: ClipRRect(borderRadius: BorderRadius.circular(5), child:
+        imageUrl.startsWith('https://')
+          ? Image.network(imageUrl, width: 49, height: 67, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox(width: 49,
+                child: Icon(Icons.movie_outlined)))
+          : const SizedBox(width: 49, child: Icon(Icons.movie_outlined))),
+      title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+      subtitle: Text('${item['episodeCount'] ?? 0} épisodes · '
+          '${item['watchedCount'] ?? 0} vus · PC'),
+      trailing: Icon(remoteLibrary.connected ? Icons.play_circle_outline :
+          Icons.cloud_off_outlined, color: Palette.kin),
+      onTap: !remoteLibrary.connected ? null : () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => RemoteEpisodesScreen(
+          host: remoteLibrary.host, pairCode: remoteLibrary.pairCode,
+          seriesId: id, seriesTitle: title))),
+    );
+  }
+
+  Widget _remoteList(List<Map<String, dynamic>> remote) {
+    return Column(children: [
+      _remoteStatus(),
+      Expanded(child: remote.isEmpty
+        ? Center(child: Text(remoteLibrary.loading ? 'Connexion au PC…' :
+            'Aucune série du PC. Ouvre Synchronisation pour associer le PC.',
+            textAlign: TextAlign.center))
+        : ListView.builder(itemCount: remote.length,
+            itemBuilder: (_, i) => _remoteTile(remote[i]))),
+    ]);
+  }
+
+  Widget _localContent() {
+
     var items = library.view(
       query: _query,
       genre: _genre,
@@ -416,6 +534,15 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (Platform.isAndroid) ...[
+                  for (final opt in const [
+                    ['all', 'Toutes'], ['local', 'Téléphone'], ['pc', 'PC']
+                  ]) ...[
+                    _chip(label: opt[1], selected: _source == opt[0],
+                      onTap: () => setState(() => _source = opt[0])),
+                    const SizedBox(width: 8),
+                  ],
+                ],
                 _sortChip(),
                 const SizedBox(width: 8),
                 for (final c in const [
