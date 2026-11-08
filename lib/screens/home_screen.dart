@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
+  Timer? _searchDebounce;
   String _query = '';
   String _source = 'all'; // all | local | pc
   String _genre = '';
@@ -71,9 +73,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _remoteUpdated() { if (mounted) setState(() {}); }
 
+  // V43 : évite de filtrer la bibliothèque distante à chaque caractère.
+  void _updateSearch(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => _query = value);
+    });
+  }
+
+
   @override
   void dispose() {
     remoteLibrary.removeListener(_remoteUpdated);
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -260,8 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return CustomScrollView(slivers: [
       SliverToBoxAdapter(child: _remoteStatus()),
       _sectionHeader('Bibliothèque du PC', remote.length),
-      SliverList(delegate: SliverChildBuilderDelegate(
-        (_, i) => _remoteTile(remote[i]), childCount: remote.length)),
+      _remoteSliver(remote),
       if (localItems.isNotEmpty) ...[
         _sectionHeader('Sur ce téléphone', localItems.length),
         SliverList(delegate: SliverChildBuilderDelegate((_, i) =>
@@ -292,38 +303,106 @@ class _HomeScreenState extends State<HomeScreen> {
     ]),
   );
 
-  Widget _remoteTile(Map<String, dynamic> item) {
-    final imageUrl = '${item['imageUrl'] ?? ''}';
+  void _openRemote(Map<String, dynamic> item) {
+    if (!remoteLibrary.connected) return;
+    final id = item['id'];
+    if (id is! int) return;
     final title = '${item['title'] ?? item['folderTitle'] ?? 'Sans titre'}';
-    final id = item['id'] as int;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) =>
+      RemoteEpisodesScreen(host: remoteLibrary.host,
+        pairCode: remoteLibrary.pairCode,
+        seriesId: id, seriesTitle: title)));
+  }
+
+  Widget _remotePoster(Map<String, dynamic> item, {double? width,
+      double? height}) {
+    final url = '${item['imageUrl'] ?? ''}';
+    final placeholder = Container(
+      width: width, height: height, color: Palette.raised,
+      child: const Center(child: Icon(Icons.movie_outlined, size: 32)));
+    if (!url.startsWith('https://') && !url.startsWith('http://')) {
+      return placeholder;
+    }
+    // Décode une vignette à la taille d'affichage, et non la jaquette HD.
+    return Image.network(url, width: width, height: height,
+      fit: BoxFit.cover, cacheWidth: 320,
+      errorBuilder: (_, __, ___) => placeholder);
+  }
+
+  Widget _remoteTile(Map<String, dynamic> item) {
+    final title = '${item['title'] ?? item['folderTitle'] ?? 'Sans titre'}';
     return ListTile(
-      leading: ClipRRect(borderRadius: BorderRadius.circular(5), child:
-        imageUrl.startsWith('https://')
-          ? Image.network(imageUrl, width: 49, height: 67, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox(width: 49,
-                child: Icon(Icons.movie_outlined)))
-          : const SizedBox(width: 49, child: Icon(Icons.movie_outlined))),
+      leading: ClipRRect(borderRadius: BorderRadius.circular(5),
+        child: _remotePoster(item, width: 49, height: 67)),
       title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Text('${item['episodeCount'] ?? 0} épisodes · '
           '${item['watchedCount'] ?? 0} vus · PC'),
       trailing: Icon(remoteLibrary.connected ? Icons.play_circle_outline :
           Icons.cloud_off_outlined, color: Palette.kin),
-      onTap: !remoteLibrary.connected ? null : () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => RemoteEpisodesScreen(
-          host: remoteLibrary.host, pairCode: remoteLibrary.pairCode,
-          seriesId: id, seriesTitle: title))),
+      onTap: remoteLibrary.connected ? () => _openRemote(item) : null,
+    );
+  }
+
+  Widget _remoteCard(Map<String, dynamic> item) {
+    final title = '${item['title'] ?? item['folderTitle'] ?? 'Sans titre'}';
+    return InkWell(
+      onTap: remoteLibrary.connected ? () => _openRemote(item) : null,
+      borderRadius: BorderRadius.circular(9),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(7),
+            child: Stack(fit: StackFit.expand, children: [
+              _remotePoster(item),
+              if (!remoteLibrary.connected)
+                const Align(alignment: Alignment.topRight,
+                  child: Padding(padding: EdgeInsets.all(6),
+                    child: Icon(Icons.cloud_off_outlined, size: 18))),
+            ]))),
+          const SizedBox(height: 5),
+          Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          Text('${item['episodeCount'] ?? 0} épisodes · PC',
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: Palette.muted)),
+        ]),
+    );
+  }
+
+  // Slivers paresseux : seules les fiches visibles sont construites.
+  Widget _remoteSliver(List<Map<String, dynamic>> remote) {
+    if (library.settings.viewMode == 'list') {
+      return SliverList(delegate: SliverChildBuilderDelegate(
+        (_, i) => _remoteTile(remote[i]), childCount: remote.length));
+    }
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverLayoutBuilder(builder: (context, constraints) {
+        final columns = (constraints.crossAxisExtent / 170).floor().clamp(2, 8);
+        return SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns, childAspectRatio: 0.52,
+            crossAxisSpacing: 12, mainAxisSpacing: 16),
+          delegate: SliverChildBuilderDelegate(
+            (_, i) => _remoteCard(remote[i]), childCount: remote.length));
+      }),
     );
   }
 
   Widget _remoteList(List<Map<String, dynamic>> remote) {
-    return Column(children: [
-      _remoteStatus(),
-      Expanded(child: remote.isEmpty
-        ? Center(child: Text(remoteLibrary.loading ? 'Connexion au PC…' :
-            'Aucune série du PC. Ouvre Synchronisation pour associer le PC.',
-            textAlign: TextAlign.center))
-        : ListView.builder(itemCount: remote.length,
-            itemBuilder: (_, i) => _remoteTile(remote[i]))),
+    return CustomScrollView(slivers: [
+      SliverToBoxAdapter(child: _remoteStatus()),
+      if (remote.isEmpty)
+        SliverFillRemaining(hasScrollBody: false,
+          child: Center(child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(remoteLibrary.loading ? 'Connexion au PC…' :
+              remoteLibrary.error.isNotEmpty
+                ? 'PC indisponible. Vérifie Tailscale et réessaie.'
+                : 'Aucune série du PC. Ouvre Synchronisation pour associer le PC.',
+              textAlign: TextAlign.center))))
+      else
+        _remoteSliver(remote),
+      const SliverToBoxAdapter(child: SizedBox(height: 90)),
     ]);
   }
 
@@ -506,7 +585,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  onChanged: (v) => setState(() => _query = v),
+                  onChanged: _updateSearch,
                   decoration: fieldDecoration(
                     hintText: 'Chercher un titre, un genre, ou « vf »',
                     prefixIcon: Icon(Icons.search,
@@ -517,6 +596,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: Icon(Icons.close,
                                 color: Palette.muted, size: 18),
                             onPressed: () {
+                              _searchDebounce?.cancel();
                               _searchController.clear();
                               setState(() => _query = '');
                             },
