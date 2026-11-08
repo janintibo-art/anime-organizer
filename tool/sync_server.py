@@ -387,4 +387,24 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if len(args.token) < 10 or not 1024 <= args.port <= 65535:
         raise SystemExit('Invalid token or port')
-    ThreadingHTTPServer(('0.0.0.0', args.port), handler_factory(Path(args.library), args.token)).serve_forever()
+    # Windows named mutex: simultaneous launches cannot multiply companion processes.
+    mutex = None
+    if os.name == 'nt':
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel32.CreateMutexW.argtypes = (ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR)
+        kernel32.CreateMutexW.restype = wintypes.HANDLE
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        mutex = kernel32.CreateMutexW(None, False, f'Local\\AnimeOrganizerSyncServer_{args.port}')
+        if not mutex:
+            raise SystemExit('Cannot create server mutex')
+        if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+            kernel32.CloseHandle(mutex)
+            raise SystemExit(0)
+    try:
+        ThreadingHTTPServer(('0.0.0.0', args.port), handler_factory(Path(args.library), args.token)).serve_forever()
+    finally:
+        if mutex is not None:
+            kernel32.CloseHandle(mutex)

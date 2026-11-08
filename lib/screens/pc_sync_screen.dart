@@ -28,6 +28,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
   final _address = TextEditingController();
   final _code = TextEditingController();
   Process? _server;
+  bool _serverReady = false;
   String _pairCode = '';
   String _ip = '';
   String _tailHost = ''; // V39_REMOTE_TAILSCALE: stable PC name across networks.
@@ -41,6 +42,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
     if (Platform.isWindows) {
       _findIp();
       unawaited(_detectTailHost());
+      unawaited(_checkRunningServer());
     } else {
       unawaited(_restorePairing());
     }
@@ -169,8 +171,52 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
     return List.generate(12, (_) => alphabet[random.nextInt(alphabet.length)]).join();
   }
 
+  // Reattach after navigation or an app restart without spawning duplicates.
+  Future<void> _checkRunningServer() async {
+    if (!Platform.isWindows) return;
+    try {
+      final token = await _savedServerCode();
+      final active = await _ping('127.0.0.1', token);
+      if (!mounted) return;
+      setState(() {
+        _serverReady = active;
+        if (active) {
+          _pairCode = token;
+          _message = 'Serveur deja actif : connexion conservee.';
+        }
+      });
+    } catch (_) { /* No companion running yet. */ }
+  }
+
+  Future<void> _stopServer() async {
+    if (_busy || !_serverReady) return;
+    setState(() => _busy = true);
+    try {
+      if (_server != null) {
+        final child = _server!;
+        child.kill();
+        try {
+          await child.exitCode.timeout(const Duration(seconds: 3));
+        } catch (_) {}
+        _server = null;
+      } else if (Platform.isWindows) {
+        // Only our named helper; the Python side enforces one instance.
+        await Process.run('taskkill', ['/IM', 'AnimeOrganizerSyncServer.exe', '/F']);
+      }
+      if (mounted) setState(() {
+        _serverReady = false;
+        _pairCode = '';
+        _message = 'Serveur arrete manuellement.';
+      });
+    } catch (e) {
+      if (mounted) setState(() => _message = 'Arret impossible : $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _start() async {
-    if (_busy || _server != null) return;
+    if (_busy || _serverReady) return;
     setState(() => _busy = true);
     try {
       final exe = p.join(p.dirname(Platform.resolvedExecutable), 'AnimeOrganizerSyncServer.exe');
@@ -182,6 +228,13 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
       if (!File(lib).existsSync()) throw Exception('Bibliothèque introuvable sur ce PC.');
       final token = await _savedServerCode();
       await _detectTailHost();
+      // An already-running companion must be reused, never started again.
+      if (await _ping('127.0.0.1', token)) {
+        _serverReady = true;
+        _pairCode = token;
+        _message = 'Serveur deja actif : connexion conservee.';
+        return;
+      }
       final child = await Process.start(exe, [
         '--library', lib, '--token', token, '--port', '$_port'
       ], mode: ProcessStartMode.normal);
@@ -192,6 +245,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
       }
       if (ready) {
         _server = child;
+        _serverReady = true;
         _pairCode = token;
         _message = 'Serveur démarré. Autorise la connexion réseau privé si Windows le demande.';
       } else {
@@ -401,7 +455,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
 
   @override
   void dispose() {
-    _server?.kill();
+    // Keep the companion alive for playback after leaving this page.
     _address.dispose(); _code.dispose();
     super.dispose();
   }
@@ -416,7 +470,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
             style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         Text(windows
-          ? 'Démarre le serveur sur ton PC, puis saisis les informations affichées dans l’APK Android. Le serveur s’arrête quand tu quittes cet écran.'
+          ? 'Démarre le serveur sur ton PC, puis saisis les informations affichées dans l’APK Android. Le serveur reste actif quand tu quittes cet écran, pour permettre la lecture à distance.'
           : 'Accede a ton PC de partout via Tailscale, meme en 4G. Colle une invitation une seule fois, puis la connexion est memorisee. Le PC doit rester allume et le serveur demarre.',
           style: TextStyle(color: Palette.muted)),
         const SizedBox(height: 12),
@@ -429,7 +483,7 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: _server == null ? null : _copyInvitation,
+            onPressed: !_serverReady ? null : _copyInvitation,
             icon: const Icon(Icons.copy_all),
             label: const Text("Copier l'invitation pour Android"),
           ),
@@ -441,12 +495,9 @@ class _PcSyncScreenState extends State<PcSyncScreen> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: _busy ? null : (_server == null ? _start : () {
-              _server?.kill();
-              setState(() { _server = null; _pairCode = ''; _message = 'Serveur arrêté.'; });
-            }),
-            icon: Icon(_server == null ? Icons.wifi_tethering : Icons.stop_circle_outlined),
-            label: Text(_server == null ? 'Démarrer le serveur' : 'Arrêter le serveur'),
+            onPressed: _busy ? null : (_serverReady ? _stopServer : _start),
+            icon: Icon(_serverReady ? Icons.stop_circle_outlined : Icons.wifi_tethering),
+            label: Text(_serverReady ? 'Arrêter le serveur' : 'Démarrer le serveur'),
           ),
         ] else ...[
           FilledButton.icon(
