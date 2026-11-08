@@ -605,6 +605,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: TextStyle(
                         color: Palette.muted, fontSize: 12, height: 1.4),
                   ),
+                  const SizedBox(height: 8),
+                  Text('Windows : copies automatiques quotidiennes dans Documents / Anime Organizer / Sauvegardes (30 versions maximum). Pour protéger aussi contre une panne du disque, exporte régulièrement vers un autre support.',
+                      style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.4)),
+                  if (library.backupWarning != null)
+                    Padding(padding: const EdgeInsets.only(top: 8),
+                      child: Text(library.backupWarning!,
+                          style: TextStyle(color: Palette.shu, fontSize: 12))),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 10,
@@ -618,7 +625,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       OutlinedButton.icon(
                         onPressed: _import,
                         icon: const Icon(Icons.restore, size: 18),
-                        label: const Text('Restaurer'),
+                        label: const Text('Restaurer un fichier'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _backupNow,
+                        icon: const Icon(Icons.backup_outlined, size: 18),
+                        label: const Text('Sauvegarder maintenant'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _showAutomaticBackups,
+                        icon: const Icon(Icons.history, size: 18),
+                        label: const Text('Historique et restauration'),
                       ),
                     ],
                   ),
@@ -1032,6 +1049,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$count fichier(s) supprimé(s).')),
     );
+  }
+
+  Future<void> _backupNow() async {
+    try {
+      final path = await library.backupNow();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sauvegarde créée : $path')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sauvegarde impossible : $e')),
+      );
+    }
+  }
+
+  Future<void> _showAutomaticBackups() async {
+    try {
+      final files = await library.listAutomaticBackups();
+      final folder = await library.automaticBackupFolder();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: Palette.surface,
+          title: const Text('Sauvegardes automatiques'),
+          content: SizedBox(
+            width: 560,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              SelectableText(folder, style: TextStyle(fontSize: 12, color: Palette.muted)),
+              const SizedBox(height: 12),
+              if (files.isEmpty) const Text('Aucune sauvegarde pour le moment.'),
+              if (files.isNotEmpty) SizedBox(height: 300, child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: files.length,
+                itemBuilder: (context, index) {
+                  final file = files[index];
+                  final name = file.uri.pathSegments.last;
+                  return ListTile(
+                    dense: true,
+                    title: Text(name, style: const TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.restore),
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _restoreAutomaticBackup(file.path);
+                    },
+                  );
+                },
+              )),
+            ]),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Fermer'))],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Historique inaccessible : $e')),
+      );
+    }
+  }
+
+  Future<void> _restoreAutomaticBackup(String path) async {
+    try {
+      final count = await library.backupAnimeCount(path);
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Palette.surface,
+          title: const Text('Restaurer cette version ?'),
+          content: Text('Cette sauvegarde contient $count séries. '
+            'La bibliothèque et les paramètres actuels seront remplacés. '
+            'Une copie de sécurité sera créée AVANT la restauration.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annuler')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Restaurer tout')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      final restored = await library.restoreFullBackup(path);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$restored séries et paramètres restaurés.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Restauration impossible : $e')),
+      );
+    }
   }
 
   Future<void> _export() async {

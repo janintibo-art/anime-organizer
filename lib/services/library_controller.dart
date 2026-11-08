@@ -209,6 +209,131 @@ class LibraryController extends ChangeNotifier {
     return _file!;
   }
 
+  // V44 : copies datées indépendantes du fichier de travail et du .bak.
+  // Sur Windows : Documents/Anime Organizer/Sauvegardes.
+  String? backupWarning;
+
+  Future<Directory> _archiveDirectory() async {
+    final Directory base;
+    if (Platform.isWindows) {
+      // Le répertoire Documents est extérieur à AppData et à l'installation.
+      base = await getApplicationDocumentsDirectory();
+    } else {
+      base = await getApplicationSupportDirectory();
+    }
+    final dir = Directory(p.join(base.path, 'Anime Organizer', 'Sauvegardes'));
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir;
+  }
+
+  String _backupStamp(DateTime now) =>
+      '${now.year}${_two(now.month)}${_two(now.day)}-'
+      '${_two(now.hour)}${_two(now.minute)}${_two(now.second)}';
+
+  Future<List<File>> listAutomaticBackups() async {
+    final dir = await _archiveDirectory();
+    final files = await dir.list().where((entry) =>
+        entry is File &&
+        p.basename(entry.path).startsWith('anime-organizer-auto-') &&
+        entry.path.endsWith('.json')).cast<File>().toList();
+    files.sort((a, b) => p.basename(b.path).compareTo(p.basename(a.path)));
+    return files;
+  }
+
+  Future<String> automaticBackupFolder() async => (await _archiveDirectory()).path;
+
+  Future<void> _pruneAutomaticBackups() async {
+    final files = await listAutomaticBackups();
+    for (final older in files.skip(30)) {
+      await older.delete();
+    }
+  }
+
+  // Ne garde qu'une copie automatique par jour, pour ne pas remplir le disque.
+  // L'instantané est pris AVANT l'écriture : il conserve l'ancien état.
+  Future<void> _backupPreviousState(File source, {bool force = false}) async {
+    if (!await source.exists()) return;
+    final raw = await source.readAsString();
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map || decoded['animes'] is! List) {
+      throw const FormatException('Bibliothèque non valide');
+    }
+    final dir = await _archiveDirectory();
+    final now = DateTime.now();
+    final day = '${now.year}${_two(now.month)}${_two(now.day)}';
+    final existing = await listAutomaticBackups();
+    if (!force && existing.any((file) => p.basename(file.path)
+        .startsWith('anime-organizer-auto-$day-'))) return;
+    final file = File(p.join(dir.path,
+        'anime-organizer-auto-${_backupStamp(now)}.json'));
+    // Un nom différent évite l'écrasement de copies existantes.
+    final target = await file.exists()
+        ? File(p.join(dir.path,
+            'anime-organizer-auto-${_backupStamp(now)}-${DateTime.now().microsecondsSinceEpoch}.json'))
+        : file;
+    await target.writeAsString(raw, flush: true);
+    await _pruneAutomaticBackups();
+  }
+
+  Future<String> backupNow() async {
+    final dir = await _archiveDirectory();
+    final snapshot = jsonEncode(_snapshot());
+    final decoded = jsonDecode(snapshot);
+    if (decoded is! Map || decoded['animes'] is! List) {
+      throw const FormatException('Contenu incorrect');
+    }
+    final now = DateTime.now();
+    final file = File(p.join(dir.path,
+        'anime-organizer-auto-${_backupStamp(now)}-${now.microsecondsSinceEpoch}.json'));
+    await file.writeAsString(snapshot, flush: true);
+    await _pruneAutomaticBackups();
+    return file.path;
+  }
+
+  Future<int> backupAnimeCount(String path) async {
+    final data = jsonDecode(await File(path).readAsString());
+    if (data is! Map || data['animes'] is! List ||
+        data['folders'] is! List || data['settings'] is! Map) {
+      throw const FormatException('Sauvegarde incomplète');
+    }
+    return (data['animes'] as List).length;
+  }
+
+  // Restauration complète, uniquement après confirmation de l'utilisateur.
+  // Crée d'abord une copie de sécurité de l'état qui va être remplacé.
+  Future<int> restoreFullBackup(String path) async {
+    final data = jsonDecode(await File(path).readAsString());
+    if (data is! Map || data['animes'] is! List ||
+        data['folders'] is! List || data['settings'] is! Map) {
+      throw const FormatException('Sauvegarde incomplète');
+    }
+    final incoming = (data['animes'] as List)
+        .map((e) => Anime.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+    final restoredSettings = AppSettings.fromJson(
+        Map<String, dynamic>.from(data['settings'] as Map));
+    final restoredFolders = (data['folders'] as List).map((e) => e.toString()).toList();
+    final restoredWishlist = (data['wishlist'] as List? ?? const [])
+        .map((e) => AnimeMeta.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+    final restoredKnown = ((data['knownTitles'] as Map?) ?? const {})
+        .map((k, v) => MapEntry(k.toString(), v.toString()));
+    final restoredManualIds = (data['manualIds'] as List? ?? const [])
+        .map((e) => e.toString()).toSet();
+    // Si la copie de secours échoue, ne rien écraser.
+    await backupNow();
+    animes = incoming;
+    folders = restoredFolders;
+    settings = restoredSettings;
+    wishlist = restoredWishlist;
+    knownTitles = restoredKnown;
+    manualIds = restoredManualIds;
+    Palette.apply(settings.themeId);
+    await save();
+    if (saveError != null) throw StateError(saveError!);
+    notifyListeners();
+    return incoming.length;
+  }
+
   /// Message affiche si la derniere sauvegarde a echoue.
   String? saveError;
 
@@ -270,6 +395,14 @@ class LibraryController extends ChangeNotifier {
       }), flush: true);
 
       if (f.existsSync()) {
+        // Ne jamais compromettre l'enregistrement principal si le dossier
+        // externe est inaccessible. L'utilisateur verra un avertissement.
+        try {
+          await _backupPreviousState(f);
+          backupWarning = null;
+        } catch (_) {
+          backupWarning = 'Sauvegarde datée impossible : vérifie le dossier Documents.';
+        }
         try {
           await f.copy('${f.path}.bak');
         } catch (_) {}
