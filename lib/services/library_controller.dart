@@ -48,6 +48,9 @@ class AppSettings {
   bool hardwareDecoding = true;
   String preferredAudio = '';
   String preferredSubtitle = 'fr';
+  // V45_SERIES_TRACKS : choix persistants, séparés pour chaque série.
+  bool rememberSeriesTracks = true;
+  Map<String, Map<String, String>> seriesTracks = {};
   bool autoFetchSubtitles = true;
   String subtitleKey = '';
   String subtitleUser = '';
@@ -91,6 +94,8 @@ class AppSettings {
         'hardwareDecoding': hardwareDecoding,
         'preferredAudio': preferredAudio,
         'preferredSubtitle': preferredSubtitle,
+        'rememberSeriesTracks': rememberSeriesTracks,
+        'seriesTracks': seriesTracks,
         'autoFetchSubtitles': autoFetchSubtitles,
         'subtitleKey': subtitleKey,
         'subtitleUser': subtitleUser,
@@ -138,6 +143,17 @@ class AppSettings {
     s.hardwareDecoding = j['hardwareDecoding'] as bool? ?? true;
     s.preferredAudio = j['preferredAudio'] as String? ?? '';
     s.preferredSubtitle = j['preferredSubtitle'] as String? ?? 'fr';
+    s.rememberSeriesTracks = j['rememberSeriesTracks'] as bool? ?? true;
+    final savedTracks = j['seriesTracks'];
+    if (savedTracks is Map) {
+      for (final entry in savedTracks.entries) {
+        if (entry.value is Map) {
+          s.seriesTracks[entry.key.toString()] = (entry.value as Map).map(
+            (key, value) => MapEntry(key.toString(), value.toString()),
+          );
+        }
+      }
+    }
     s.autoFetchSubtitles = j['autoFetchSubtitles'] as bool? ?? true;
     s.subtitleKey = j['subtitleKey'] as String? ?? '';
     s.subtitleUser = j['subtitleUser'] as String? ?? '';

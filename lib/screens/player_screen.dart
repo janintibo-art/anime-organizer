@@ -84,6 +84,49 @@ class _PlayerScreenState extends State<PlayerScreen> {
   PlaylistMode _loopMode = PlaylistMode.none;
   bool _subtitleSearchDone = false;
   bool _searchingSubtitles = false;
+  // V45_SERIES_TRACKS : gardés en mémoire lors de chaque changement d'épisode.
+  Map<String, String> get _seriesChoices {
+    final key = widget.anime?.id;
+    if (key == null || !library.settings.rememberSeriesTracks) {
+      return const <String, String>{};
+    }
+    return library.settings.seriesTracks[key] ?? const <String, String>{};
+  }
+
+  void _rememberTrack(String type, String value) {
+    final key = widget.anime?.id;
+    if (key == null || !library.settings.rememberSeriesTracks) return;
+    library.updateSettings((settings) {
+      settings.seriesTracks.putIfAbsent(key, () => <String, String>{})[type] = value;
+    });
+  }
+
+  // Les identifiants numériques des pistes changent entre épisodes :
+  // mémoriser la langue, ou à défaut le titre, jamais l'identifiant.
+  String _trackPreference(String? language, String? title) {
+    final lang = (language ?? '').trim().toLowerCase();
+    if (lang.isNotEmpty && lang != 'und') return lang;
+    return (title ?? '').trim().toLowerCase();
+  }
+
+  bool _matchingTrack(String preference, String? language, String? title) {
+    final wanted = preference.toLowerCase().trim();
+    final tag = '${language ?? ''} ${title ?? ''}'.toLowerCase();
+    if (wanted.isEmpty) return false;
+    if (tag.contains(wanted)) return true;
+    const aliases = <String, List<String>>{
+      'fr': ['fra', 'fre', 'french', 'français', 'francais'],
+      'ja': ['jpn', 'japanese', 'japonais'],
+      'en': ['eng', 'english', 'anglais'],
+    };
+    for (final entry in aliases.entries) {
+      final names = [entry.key, ...entry.value];
+      if (names.contains(wanted) && names.any((v) =>
+          tag.split(RegExp(r'[^a-zA-ZÀ-ÿ]+')).contains(v))) return true;
+    }
+    return false;
+  }
+
 
   @override
   void initState() {
@@ -291,13 +334,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
     if (episode.subtitles.isEmpty) return;
 
-    final preferred = library.settings.preferredSubtitle.toLowerCase();
+    final preferred = (_seriesChoices['subtitle'] ??
+        library.settings.preferredSubtitle).toLowerCase();
+    if (preferred == 'no' || preferred == 'off') return;
+    final episodeIndex = _index;
     final chosen = episode.subtitles.firstWhere(
       (path) => preferred.isNotEmpty && path.toLowerCase().contains(preferred),
       orElse: () => episode.subtitles.first,
     );
     Future<void>.delayed(const Duration(milliseconds: 400), () {
-      if (!mounted) return;
+      if (!mounted || _index != episodeIndex ||
+          _seriesChoices['subtitle'] == 'no') return;
       _player.setSubtitleTrack(SubtitleTrack.uri(Uri.file(chosen).toString()));
     });
   }
@@ -308,13 +355,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final episode = widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
     if (episode.externalAudio.isEmpty) return;
 
-    final preferred = library.settings.preferredAudio.toLowerCase();
+    final preferred = (_seriesChoices['audio'] ??
+        library.settings.preferredAudio).toLowerCase();
+    final episodeIndex = _index;
     final chosen = episode.externalAudio.firstWhere(
       (path) => preferred.isNotEmpty && path.toLowerCase().contains(preferred),
       orElse: () => episode.externalAudio.first,
     );
     Future<void>.delayed(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
+      if (!mounted || _index != episodeIndex) return;
       _player.setAudioTrack(AudioTrack.uri(Uri.file(chosen).toString()));
       _flash('Piste audio externe chargée.');
     });
@@ -360,27 +409,33 @@ class _PlayerScreenState extends State<PlayerScreen> {
       return;
     }
     _langApplied = true;
-    final audioPref = library.settings.preferredAudio.toLowerCase();
-    final subPref = library.settings.preferredSubtitle.toLowerCase();
+    final audioPref = (_seriesChoices['audio'] ??
+        library.settings.preferredAudio).toLowerCase();
+    final subPref = (_seriesChoices['subtitle'] ??
+        library.settings.preferredSubtitle).toLowerCase();
 
     if (audioPref.isNotEmpty) {
       for (final t in tracks.audio) {
         final lang = t.language ?? '';
         final title = t.title ?? '';
         final tag = '$lang $title'.toLowerCase();
-        if (tag.contains(audioPref)) {
+        if (_matchingTrack(audioPref, t.language, t.title)) {
           _player.setAudioTrack(t);
           break;
         }
       }
     }
     var subtitleFound = false;
-    if (subPref.isNotEmpty) {
+    if (subPref == 'no' || subPref == 'off') {
+      // Désactiver même lorsque le conteneur active les sous-titres par défaut.
+      _player.setSubtitleTrack(SubtitleTrack.no());
+      subtitleFound = true;
+    } else if (subPref.isNotEmpty) {
       for (final t in tracks.subtitle) {
         final lang = t.language ?? '';
         final title = t.title ?? '';
         final tag = '$lang $title'.toLowerCase();
-        if (tag.contains(subPref)) {
+        if (_matchingTrack(subPref, t.language, t.title)) {
           _player.setSubtitleTrack(t);
           subtitleFound = true;
           break;
@@ -1769,6 +1824,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           children: [
             Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(widget.anime != null && library.settings.rememberSeriesTracks
+                  ? 'Choix conservés pour toute la série'
+                  : 'Choix pour cet épisode uniquement',
+                style: TextStyle(color: Palette.muted, fontSize: 12)),
+            ),
+            Padding(
               padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Text('Audio',
                   style: TextStyle(color: Palette.muted, fontSize: 12)),
@@ -1783,6 +1845,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     : null,
                 onTap: () {
                   _player.setAudioTrack(t);
+                  _rememberTrack('audio', _trackPreference(t.language, t.title));
                   Navigator.pop(ctx);
                 },
               ),
@@ -1802,6 +1865,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     : null,
                 onTap: () {
                   _player.setSubtitleTrack(t);
+                  _rememberTrack('subtitle', t.id == 'no'
+                      ? 'no' : _trackPreference(t.language, t.title));
                   Navigator.pop(ctx);
                 },
               ),
