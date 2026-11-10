@@ -96,6 +96,9 @@ jobs:
       - name: Recuperer les dependances
         run: flutter pub get
 
+      - name: Activer les plugins de la seconde fenêtre V50
+        run: python3 tool/patch_v50_windows.py
+
       - name: Generer l'icone Windows
         run: dart run flutter_launcher_icons -f icons_windows.yaml
 

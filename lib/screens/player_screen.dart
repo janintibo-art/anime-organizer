@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -9,6 +10,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../main.dart';
 import '../models/vf.dart';
@@ -88,9 +91,75 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // V48_MINI_PLAYER : le Player et le VideoController ne sont jamais recréés.
   bool _minimized = false;
+  bool _detachingWindows = false;
+  WindowController? _floatingWindow;
   double _miniRight = 12;
   double _miniBottom = 20;
   final GlobalKey<NavigatorState> _miniNavigatorKey = GlobalKey<NavigatorState>();
+
+  /// Le lecteur dans la seconde fenêtre est une instance distincte :
+  /// on transmet la playlist et la position, puis on suspend la première.
+  Future<void> _detachWindowsPlayer() async {
+    if (!Platform.isWindows || _detachingWindows || _floatingWindow != null) return;
+    setState(() => _detachingWindows = true);
+    try {
+      final mainWindow = await WindowController.fromCurrentEngine();
+      await mainWindow.setWindowMethodHandler((call) async {
+        if (call.method != 'floating_restore' && call.method != 'floating_close') {
+          return null;
+        }
+        final payload = Map<String, dynamic>.from(call.arguments as Map? ?? {});
+        final nextIndex = ((payload['index'] as num?)?.toInt() ?? _index)
+            .clamp(0, widget.episodes.length - 1);
+        final nextPosition = Duration(
+            milliseconds: (payload['positionMs'] as num?)?.toInt() ?? 0);
+        final shouldPlay = payload['playing'] == true;
+        _floatingWindow = null;
+        if (!mounted) return 'disposed';
+        if (call.method == 'floating_close') {
+          await _player.pause();
+          if (mounted) Navigator.of(context).pop();
+          return 'closed';
+        }
+        if (_index != nextIndex) {
+          await _player.jump(nextIndex);
+        }
+        await _player.seek(nextPosition);
+        if (shouldPlay) { await _player.play(); }
+        else { await _player.pause(); }
+        if (_minimized) _restorePlayer();
+        // L'application principale peut être réduite : la restaurer.
+        await windowManager.ensureInitialized();
+        await windowManager.restore();
+        await windowManager.show();
+        await windowManager.focus();
+        return 'restored';
+      });
+      final prefs = _seriesChoices;
+      final controller = await WindowController.create(WindowConfiguration(
+        hiddenAtLaunch: true,
+        arguments: jsonEncode({
+          'kind': 'floating-video',
+          'mainWindowId': mainWindow.windowId,
+          'paths': widget.episodes.map((e) => e.path).toList(),
+          'index': _index,
+          'positionMs': _player.state.position.inMilliseconds,
+          'audio': prefs['audio'] ?? library.settings.preferredAudio,
+          'subtitle': prefs['subtitle'] ?? library.settings.preferredSubtitle,
+        }),
+      ));
+      _floatingWindow = controller;
+      await controller.show();
+      await _player.pause();
+      // Le lecteur principal est conservé en mémoire pour reprendre sa place.
+      _minimizePlayer();
+    } catch (error) {
+      _floatingWindow = null;
+      if (mounted) _flash('Fenêtre indépendante impossible : $error');
+    } finally {
+      if (mounted) setState(() => _detachingWindows = false);
+    }
+  }
 
   void _minimizePlayer() {
     setState(() => _minimized = true);
@@ -1205,6 +1274,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
               onPressed: _minimizePlayer,
               icon: const Icon(Icons.picture_in_picture_alt_outlined),
             ),
+            if (Platform.isWindows)
+              IconButton(
+                tooltip: 'Détacher sur le bureau Windows',
+                onPressed: _detachingWindows || _floatingWindow != null
+                    ? null : _detachWindowsPlayer,
+                icon: const Icon(Icons.open_in_new),
+              ),
             IconButton(
               tooltip: 'Passer l\'intro (S)',
               onPressed: () => _seekBy(library.settings.skipIntroSeconds),

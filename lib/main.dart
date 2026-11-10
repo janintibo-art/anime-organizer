@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'screens/floating_player_window.dart';
 
 import 'screens/splash_screen.dart';
 import 'services/library_controller.dart';
@@ -196,6 +200,20 @@ AppBar darkAppBar({required Widget title, List<Widget>? actions}) {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+  // La fenêtre secondaire possède son propre moteur Flutter. Ne pas
+  // démarrer de scan ni recharger la bibliothèque dans cette fenêtre.
+  if (Platform.isWindows) {
+    final window = await WindowController.fromCurrentEngine();
+    try {
+      final arguments = jsonDecode(window.arguments);
+      if (arguments is Map && arguments['kind'] == 'floating-video') {
+        runApp(FloatingPlayerWindow(initial: Map<String, dynamic>.from(arguments)));
+        return;
+      }
+    } catch (_) {
+      // Fenêtre principale : arguments vides ou non-JSON.
+    }
+  }
   await SeedDatabase.load();
   await library.load();
 
