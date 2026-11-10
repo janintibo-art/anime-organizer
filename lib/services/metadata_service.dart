@@ -12,6 +12,10 @@ import 'tvmaze_api.dart';
 /// En mode automatique : AniList d'abord (rapide et complet), Jikan en
 /// secours quand AniList ne trouve rien.
 class MetadataService {
+  // V47_QUALITY_CACHE : memorisation temporaire des memes requetes.
+  // Le score et les seuils de validation restent inchanges.
+  static final Map<String, Future<List<AnimeMeta>>> _searchCache = {};
+  static const int _maxCachedSearches = 160;
   static final RegExp _accents = RegExp('[\u00C0-\u017F]');
 
   static const Map<String, String> _accentMap = {
@@ -182,16 +186,53 @@ class MetadataService {
     int limit = 8,
     String tmdbKey = '',
   }) async {
+    // Un meme titre recherche par le scan, le titre du fichier ou l'IA
+    // ne doit pas relancer une serie d'appels reseau identiques.
+    final key = '$source\u001f${title.trim().toLowerCase()}\u001f$limit\u001f$tmdbKey';
+    final cached = _searchCache[key];
+    if (cached != null) return await cached;
+    final request = _searchManyUncached(title,
+        source: source, limit: limit, tmdbKey: tmdbKey);
+    _searchCache[key] = request;
+    if (_searchCache.length > _maxCachedSearches) {
+      _searchCache.remove(_searchCache.keys.first);
+    }
+    try {
+      final result = await request;
+      // Ne jamais memoriser un echec de recherche : une API peut etre
+      // temporairement indisponible ou limiter le nombre de requetes.
+      if (result.isEmpty && identical(_searchCache[key], request)) {
+        _searchCache.remove(key);
+      }
+      return result;
+    } catch (_) {
+      // Une panne de reseau ne doit jamais etre conservee dans le cache.
+      if (identical(_searchCache[key], request)) _searchCache.remove(key);
+      rethrow;
+    }
+  }
+
+  static Future<List<AnimeMeta>> _searchManyUncached(
+    String title, {
+    String source = 'auto',
+    int limit = 8,
+    String tmdbKey = '',
+  }) async {
     // V23_AUTO_CATEGORY: conservative animated-film and TV cross-search.
     if (source == 'animation') {
       final out = <AnimeMeta>[];
+      // Catalogues independants : lancement simultane, puis meme classement.
+      // Une source moins precise ne remplace pas un meilleur candidat.
+      final futures = <Future<List<AnimeMeta>>>[];
       if (tmdbKey.trim().isNotEmpty) {
-        out.addAll(await TmdbApi.search(title, tmdbKey, limit: limit));
-        out.addAll(await TmdbApi.searchAnimatedMovies(title, tmdbKey, limit: limit));
+        futures.add(TmdbApi.search(title, tmdbKey, limit: limit));
+        futures.add(TmdbApi.searchAnimatedMovies(title, tmdbKey, limit: limit));
       }
-      out.addAll(await TvmazeApi.search(title, limit: limit));
-      // Japanese results are considered too, even for unknown categories.
-      out.addAll(await AniListApi.searchMany(title, limit: limit));
+      futures.add(TvmazeApi.search(title, limit: limit));
+      futures.add(AniListApi.searchMany(title, limit: limit));
+      for (final results in await Future.wait(futures)) {
+        out.addAll(results);
+      }
       final dedup = <String>{};
       final results = out.where((m) => dedup.add('${m.source}:${m.sourceId ?? m.title}'))
           .toList()
@@ -214,9 +255,15 @@ class MetadataService {
       case 'western':
         // TVmaze sans clé + TMDB avec clé : deux chances de trouver
         // les séries animées occidentales, sans doublons.
-        final tv = await TvmazeApi.search(title, limit: limit);
-        if (tmdbKey.trim().isEmpty) return tv;
-        final tmdb = await TmdbApi.search(title, tmdbKey, limit: limit);
+        if (tmdbKey.trim().isEmpty) {
+          return TvmazeApi.search(title, limit: limit);
+        }
+        final results = await Future.wait<List<AnimeMeta>>([
+          TvmazeApi.search(title, limit: limit),
+          TmdbApi.search(title, tmdbKey, limit: limit),
+        ]);
+        final tv = results[0];
+        final tmdb = results[1];
         final seen = <String>{};
         final merged = <AnimeMeta>[];
         for (final item in [...tmdb, ...tv]) {
@@ -232,12 +279,16 @@ class MetadataService {
         // surcharge, Kitsu prend le relais.
         final primary = await AniListApi.searchMany(title, limit: limit);
         if (primary.isNotEmpty) return primary;
-        final secondary = await JikanApi.searchMany(title, limit: limit);
-        if (secondary.isNotEmpty) return secondary;
-        final third = await KitsuApi.search(title, limit: limit);
-        if (third.isNotEmpty) return third;
-        final fourth = await AnimeThemesApi.search(title, limit: limit);
-        if (fourth.isNotEmpty) return fourth;
+        // AniList a priorite ; si elle n'a rien, interroger les trois
+        // sources secondaires ensemble et conserver leur ordre de priorite.
+        final backups = await Future.wait<List<AnimeMeta>>([
+          JikanApi.searchMany(title, limit: limit),
+          KitsuApi.search(title, limit: limit),
+          AnimeThemesApi.search(title, limit: limit),
+        ]);
+        for (final candidates in backups) {
+          if (candidates.isNotEmpty) return candidates;
+        }
         if (tmdbKey.trim().isEmpty) return const [];
         return TmdbApi.search(title, tmdbKey, limit: limit);
     }
