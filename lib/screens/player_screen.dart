@@ -19,6 +19,7 @@ import '../services/poster_cache.dart';
 import '../services/capture_gallery.dart';
 import '../services/theme_audio_service.dart';
 import '../services/video_hash.dart';
+import 'home_screen.dart'; // V48_MINI_PLAYER : bibliotheque derriere la video
 
 class PlayerScreen extends StatefulWidget {
   final String title;
@@ -84,6 +85,116 @@ class _PlayerScreenState extends State<PlayerScreen> {
   PlaylistMode _loopMode = PlaylistMode.none;
   bool _subtitleSearchDone = false;
   bool _searchingSubtitles = false;
+
+  // V48_MINI_PLAYER : le Player et le VideoController ne sont jamais recréés.
+  bool _minimized = false;
+  double _miniRight = 12;
+  double _miniBottom = 20;
+  final GlobalKey<NavigatorState> _miniNavigatorKey = GlobalKey<NavigatorState>();
+
+  void _minimizePlayer() {
+    setState(() => _minimized = true);
+    // Navigation habituelle, notamment en portrait sur telephone.
+    if (Platform.isAndroid) {
+      SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+  }
+
+  void _restorePlayer() {
+    setState(() => _minimized = false);
+    if (Platform.isAndroid) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
+  }
+
+  // Refermer la video arrete sa session, mais pas la navigation precedente.
+  void _closeMiniPlayer() {
+    _persist();
+    Navigator.of(context).pop();
+  }
+
+  Widget _miniPlayerLayout() {
+    return LayoutBuilder(builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final height = constraints.maxHeight;
+      final miniWidth = width < 600
+          ? (width * 0.58).clamp(170.0, 270.0).toDouble()
+          : (width * 0.32).clamp(240.0, 390.0).toDouble();
+      final miniHeight = miniWidth * 9 / 16 + 43;
+      final right = _miniRight.clamp(0.0, (width - miniWidth).clamp(0.0, width)).toDouble();
+      final bottom = _miniBottom.clamp(0.0, (height - miniHeight).clamp(0.0, height)).toDouble();
+      return Stack(children: [
+        Positioned.fill(
+          child: Navigator(
+            key: _miniNavigatorKey,
+            onGenerateRoute: (_) => MaterialPageRoute<void>(
+              builder: (_) => const HomeScreen(),
+            ),
+          ),
+        ),
+        Positioned(
+          right: right,
+          bottom: bottom,
+          width: miniWidth,
+          height: miniHeight,
+          child: Material(
+            color: const Color(0xFF111116),
+            elevation: 16,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: [
+              Expanded(
+                child: Video(
+                  controller: _controller,
+                  controls: NoVideoControls,
+                  fit: BoxFit.contain,
+                  subtitleViewConfiguration: SubtitleViewConfiguration(
+                    style: _subtitleTextStyle(size: 16),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                ),
+              ),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanUpdate: (details) => setState(() {
+                  _miniRight = (_miniRight - details.delta.dx).clamp(
+                    0.0, (width - miniWidth).clamp(0.0, width)).toDouble();
+                  _miniBottom = (_miniBottom - details.delta.dy).clamp(
+                    0.0, (height - miniHeight).clamp(0.0, height)).toDouble();
+                }),
+                child: SizedBox(height: 43, child: Row(children: [
+                  IconButton(
+                    tooltip: 'Pause / lecture',
+                    icon: Icon(_player.state.playing ? Icons.pause : Icons.play_arrow,
+                      color: Colors.white, size: 19),
+                    onPressed: () { _player.playOrPause(); setState(() {}); },
+                  ),
+                  const Expanded(child: Icon(Icons.drag_indicator,
+                    color: Colors.white54, size: 18)),
+                  IconButton(
+                    tooltip: 'Revenir en plein ecran',
+                    icon: const Icon(Icons.fullscreen, color: Colors.white, size: 19),
+                    onPressed: _restorePlayer,
+                  ),
+                  IconButton(
+                    tooltip: 'Arreter la video',
+                    icon: const Icon(Icons.close, color: Colors.white, size: 19),
+                    onPressed: _closeMiniPlayer,
+                  ),
+                ])),
+              ),
+            ]),
+          ),
+        ),
+      ]);
+    });
+  }
+
   // V45_SERIES_TRACKS : gardés en mémoire lors de chaque changement d'épisode.
   Map<String, String> get _seriesChoices {
     final key = widget.anime?.id;
@@ -1044,7 +1155,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } else if (key == LogicalKeyboardKey.keyP) {
       _player.previous();
     } else if (key == LogicalKeyboardKey.escape) {
-      Navigator.of(context).maybePop();
+      if (_minimized) { _restorePlayer(); } else { Navigator.of(context).maybePop(); }
     } else if (key == LogicalKeyboardKey.arrowUp) {
       _player.setVolume((_player.state.volume + 10).clamp(0, 100));
     } else if (key == LogicalKeyboardKey.arrowDown) {
@@ -1056,6 +1167,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Widget build(BuildContext context) {
     final episode =
         widget.episodes[_index.clamp(0, widget.episodes.length - 1)];
+
+    if (_minimized) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          final nested = _miniNavigatorKey.currentState;
+          if (nested != null && nested.canPop()) {
+            nested.pop();
+          } else {
+            _restorePlayer();
+          }
+        },
+        child: _miniPlayerLayout(),
+      );
+    }
 
     return KeyboardListener(
       focusNode: _focus,
@@ -1073,6 +1200,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           actions: [
+            IconButton(
+              tooltip: 'Reduire la video et parcourir la bibliotheque',
+              onPressed: _minimizePlayer,
+              icon: const Icon(Icons.picture_in_picture_alt_outlined),
+            ),
             IconButton(
               tooltip: 'Passer l\'intro (S)',
               onPressed: () => _seekBy(library.settings.skipIntroSeconds),
