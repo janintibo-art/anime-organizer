@@ -220,6 +220,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ? _emptyState()
               : Column(
                   children: [
+                    // V46_STATS_HEADER : compteurs visibles avant la progression.
+                    if (library.animes.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            '${library.animes.length} séries · '
+                            '${library.animes.fold<int>(0, (total, anime) => total + anime.episodes.length)} épisodes',
+                            style: TextStyle(color: Palette.muted, fontSize: 13),
+                          ),
+                        ),
+                      ),
                     if (library.busy) _progressBar(),
                     if (library.animes.isNotEmpty || remoteLibrary.series.isNotEmpty) _filters(),
                     Expanded(child: _content()),
