@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../main.dart';
+import '../services/disk_history.dart';
 
 /// Diagnostic non destructif : Windows Storage Reliability Counters.
 /// Les valeurs SMART non disponibles restent inconnues (jamais 100 % inventé).
@@ -21,6 +22,10 @@ class _DiskHealthScreenState extends State<DiskHealthScreen> {
   String? _error;
   List<Map<String, dynamic>> _disks = const [];
   DateTime? _updated;
+  final DiskHistory _history = DiskHistory();
+  Timer? _monitorTimer;
+  List<String> _alerts = const [];
+
 
   // Aucun contrôle ni écriture sur les disques : simple lecture des données Windows.
   // Une commande lancée sans shell, sans données issues des noms de disque.
@@ -62,8 +67,19 @@ ConvertTo-Json -InputObject @($items) -Depth 4 -Compress
   void initState() {
     super.initState();
     if (Platform.isWindows) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _history.load();
+        if (mounted) await _refresh();
+      });
+      // Actualisation tant que cet écran reste ouvert. Pas un service de fond.
+      _monitorTimer = Timer.periodic(const Duration(minutes: 10), (_) => _refresh());
     }
+  }
+
+  @override
+  void dispose() {
+    _monitorTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -87,7 +103,15 @@ ConvertTo-Json -InputObject @($items) -Depth 4 -Compress
           .map((item) => item.map((key, value) => MapEntry(key.toString(), value)))
           .toList();
       if (!mounted) return;
-      setState(() { _disks = parsed; _updated = DateTime.now(); });
+      final now = DateTime.now();
+      final alerts = _history.append(parsed, now);
+      await _history.save();
+      if (!mounted) return;
+      setState(() {
+        _disks = parsed;
+        _updated = now;
+        _alerts = alerts;
+      });
     } on TimeoutException {
       if (mounted) setState(() => _error = 'Le diagnostic Windows a dépassé 30 secondes.');
     } catch (e) {
@@ -143,6 +167,17 @@ ConvertTo-Json -InputObject @($items) -Depth 4 -Compress
     final hours = _number(disk['powerOnHours']);
     final reads = _number(disk['readErrorsUncorrected']);
     final writes = _number(disk['writeErrorsUncorrected']);
+    final historical = _history.forDisk(disk);
+    final recentTemps = historical.reversed
+        .map((e) => _number(e['temperature']))
+        .whereType<int>()
+        .take(24)
+        .toList().reversed.toList();
+    final wearHistory = historical.reversed
+        .map((e) => _number(e['wear']))
+        .whereType<int>()
+        .take(24)
+        .toList().reversed.toList();
     return Card(
       color: Palette.surface,
       margin: const EdgeInsets.only(bottom: 12),
@@ -167,6 +202,21 @@ ConvertTo-Json -InputObject @($items) -Depth 4 -Compress
             _metric('Erreurs lecture non corrigées', reads == null ? 'Non disponible' : '$reads'),
             _metric('Erreurs écriture non corrigées', writes == null ? 'Non disponible' : '$writes'),
           ]),
+          if (recentTemps.length > 1) ...[
+            const SizedBox(height: 14),
+            Text('Température · ${recentTemps.length} derniers relevés',
+                style: TextStyle(color: Palette.muted, fontSize: 12)),
+            const SizedBox(height: 5),
+            SizedBox(height: 46, width: double.infinity,
+                child: CustomPaint(painter: _TrendPainter(recentTemps))),
+            Text('Min ${recentTemps.reduce((a, b) => a < b ? a : b)} °C · '
+                'Max ${recentTemps.reduce((a, b) => a > b ? a : b)} °C',
+                style: TextStyle(color: Palette.muted, fontSize: 12)),
+          ],
+          if (isSsd && wearHistory.length > 1)
+            Padding(padding: const EdgeInsets.only(top: 8),
+              child: Text('Usure SSD relevée : ${wearHistory.first} % → ${wearHistory.last} %',
+                style: TextStyle(color: Palette.muted, fontSize: 12))),
         ]),
       ),
     );
@@ -182,7 +232,7 @@ ConvertTo-Json -InputObject @($items) -Depth 4 -Compress
   );
 
   Future<void> _copyReport() async {
-    final lines = <String>['Anime Organizer — Rapport disques (${_updated ?? DateTime.now()})'];
+    final lines = <String>['Anime Organizer — Rapport disques (${_updated ?? DateTime.now()})', ..._alerts];
     for (final d in _disks) {
       lines.add('${d['name']} | ${d['type']} | ${_size(d['size'])} | SMART ${d['health']} | '
           'temp ${d['temperature'] ?? 'N/D'} °C | usure ${d['wear'] ?? 'N/D'} % | '
@@ -218,6 +268,24 @@ ConvertTo-Json -InputObject @($items) -Depth 4 -Compress
               Text('Lecture seule des données Windows. '
                   'Un état normal ne garantit pas qu’un disque ne tombera pas en panne.',
                   style: TextStyle(color: Palette.muted)),
+              const SizedBox(height: 7),
+              Text('Historique local sur 90 jours · relevé toutes les 10 minutes '
+                  'tant que cet écran reste ouvert. La fermeture de l’application '
+                  'arrête la surveillance.',
+                  style: TextStyle(color: Palette.muted, fontSize: 12)),
+              if (_history.storageError != null)
+                Padding(padding: const EdgeInsets.only(top: 8),
+                  child: Text(_history.storageError!,
+                    style: const TextStyle(color: Color(0xFFFFC45C)))),
+              if (_alerts.isNotEmpty) Card(
+                color: const Color(0xFF442D21),
+                child: Padding(padding: const EdgeInsets.all(12),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Alertes de surveillance',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    for (final item in _alerts)
+                      Padding(padding: const EdgeInsets.only(top: 7), child: Text('• $item')),
+                  ]))),
               if (_updated != null) Padding(
                 padding: const EdgeInsets.only(top: 8, bottom: 8),
                 child: Text('Dernière analyse : ${_updated!.hour.toString().padLeft(2, '0')}:${_updated!.minute.toString().padLeft(2, '0')}',
@@ -241,5 +309,44 @@ ConvertTo-Json -InputObject @($items) -Depth 4 -Compress
                   style: TextStyle(fontSize: 12, color: Palette.muted)),
             ]),
     );
+  }
+}
+
+
+/// Petite courbe autonome : pas de bibliothèque graphique supplémentaire.
+class _TrendPainter extends CustomPainter {
+  final List<int> values;
+  const _TrendPainter(this.values);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2 || size.width <= 0 || size.height <= 0) return;
+    final low = values.reduce((a, b) => a < b ? a : b).toDouble() - 2;
+    final high = values.reduce((a, b) => a > b ? a : b).toDouble() + 2;
+    final span = (high - low).clamp(1.0, double.infinity);
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
+      final x = size.width * i / (values.length - 1);
+      final y = size.height - (values[i] - low) / span * size.height;
+      if (i == 0) { path.moveTo(x, y); } else { path.lineTo(x, y); }
+    }
+    canvas.drawPath(path, Paint()
+      ..color = const Color(0xFFFFC45C)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TrendPainter oldDelegate) =>
+      oldDelegate.values.length != values.length ||
+      !ListEqualityInt.same(oldDelegate.values, values);
+}
+
+class ListEqualityInt {
+  static bool same(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) { if (a[i] != b[i]) return false; }
+    return true;
   }
 }
