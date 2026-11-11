@@ -9,6 +9,7 @@ import '../services/seed_database.dart';
 import '../services/poster_cache.dart';
 import 'bulk_fix_screen.dart';
 import 'folder_picker_screen.dart';
+import 'disk_health_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -90,7 +91,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context, _) {
         final s = library.settings;
         return Scaffold(
-          appBar: darkAppBar(title: const Text('Réglages')),
+          appBar: darkAppBar(title: const Text('Réglages'), actions: [
+            IconButton(tooltip: 'État des disques du PC',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const DiskHealthScreen())),
+              icon: const Icon(Icons.storage_outlined)),
+          ]),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
             children: [

@@ -13,6 +13,7 @@ import '../widgets/anime_card.dart';
 import 'detail_screen.dart';
 import 'folder_picker_screen.dart';
 import 'settings_screen.dart';
+import 'disk_health_screen.dart';
 import 'pc_sync_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -171,6 +172,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     case 'scan':
                       if (!library.busy) await library.scan();
                       break;
+                    case 'disks':
+                      if (!mounted) return;
+                      await Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const DiskHealthScreen()));
+                      break;
                     case 'settings':
                       if (!mounted) return;
                       await Navigator.of(context).push(MaterialPageRoute(
@@ -183,6 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   PopupMenuItem(value: 'folder', child: Text('Ajouter un dossier')),
                   PopupMenuItem(value: 'repair', child: Text('Verifier les fiches')),
                   PopupMenuItem(value: 'scan', child: Text('Actualiser la bibliotheque')),
+                  PopupMenuItem(value: 'disks', child: Text('État des disques du PC')),
                   PopupMenuItem(value: 'settings', child: Text('Reglages')),
                 ],
               ),
@@ -202,6 +209,10 @@ class _HomeScreenState extends State<HomeScreen> {
               IconButton(tooltip: 'Relancer le scan',
                 onPressed: library.busy ? null : () => library.scan(),
                 icon: const Icon(Icons.refresh)),
+              IconButton(tooltip: 'État des disques du PC',
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const DiskHealthScreen())),
+                icon: const Icon(Icons.storage_outlined)),
               IconButton(tooltip: 'Reglages',
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const SettingsScreen())),
