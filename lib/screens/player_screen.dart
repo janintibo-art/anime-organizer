@@ -1056,8 +1056,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     return TextStyle(
       fontSize: taille,
-      height: 1.3,
-      color: Color(s.subtitleColor),
+      height: s.subtitleLineHeight,
+      letterSpacing: s.subtitleLetterSpacing,
+      fontFamily: s.subtitleFont == 'default' ? null : s.subtitleFont,
+      color: Color(s.subtitleColor).withOpacity(s.subtitleOpacity),
       fontWeight: s.subtitleBold ? FontWeight.w700 : FontWeight.w400,
       backgroundColor: fond,
       shadows: ombres,
@@ -1508,6 +1510,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  // V52_MENU_GROUPES : commandes classées par usage.
   void _openOptions() {
     showModalBottomSheet<void>(
       context: context,
@@ -1539,7 +1542,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  if (widget.anime != null) ...[
+                   ExpansionTile(
+                     key: const PageStorageKey('v52-image'),
+                     initiallyExpanded: false,
+                     leading: const Icon(Icons.image_outlined),
+                     title: const Text('Image et captures'),
+                     subtitle: const Text('Format, F2, F3 et extraits audio'),
+                     children: [
+                   if (widget.anime != null) ...[
                     _optionTitle('Captures de la serie'),
                     OutlinedButton.icon(
                       onPressed: () { Navigator.pop(ctx); _captureForGallery(); },
@@ -1573,13 +1583,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         () => library.updateSettings((s) => s.videoFit = v)),
                   ),
 
-                  _optionTitle('Sous-titres'),
+                     ],
+                   ),
+                   ExpansionTile(
+                     key: const PageStorageKey('v52-subtitles'),
+                     initiallyExpanded: true,
+                     leading: const Icon(Icons.subtitles_outlined),
+                     title: const Text('Sous-titres'),
+                     subtitle: const Text('Apparence, police, position et lisibilité'),
+                     children: [
+                   _optionTitle('Aperçu des sous-titres'),
                   // Aperçu : le lecteur est souvent en pause pendant qu'on
                   // règle, et une réplique n'est pas toujours à l'écran.
                   Container(
                     width: double.infinity,
-                    height: 110,
-                    alignment: Alignment.bottomCenter,
+                     constraints: const BoxConstraints(minHeight: 90, maxHeight: 160),
+                     alignment: Alignment.center,
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
@@ -1590,14 +1609,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       borderRadius: BorderRadius.circular(radiusMd),
                     ),
                     child: Text(
-                      'Voici tes sous-titres.',
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                       'Voici tes sous-titres.\nDeuxième ligne de démonstration.',
+                       textAlign: TextAlign.center,
+                       maxLines: 2,
+                       overflow: TextOverflow.ellipsis,
                       // L'aperçu est plafonné : une taille « énorme » ne tient
                       // pas dans le cadre, mais les proportions restent vraies.
                       style: _subtitleTextStyle(
-                          size: library.settings.subtitleSize.clamp(14, 44).toDouble()),
+                          size: library.settings.subtitleSize.clamp(14, 29).toDouble()),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -1693,7 +1712,79 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         (s) => s.subtitleBottom = double.parse(v))),
                   ),
 
-                  _optionTitle('Saut des flèches'),
+                   const SizedBox(height: 14),
+                   _optionTitle('Police de caractères'),
+                   _choices(
+                     values: const {
+                       'default': 'Classique',
+                       'serif': 'Avec empattements',
+                       'monospace': 'Monospace',
+                     },
+                     selected: library.settings.subtitleFont,
+                     onSelected: (v) => update(() => library.updateSettings(
+                         (s) => s.subtitleFont = v)),
+                   ),
+                   const SizedBox(height: 10),
+                   Text('Espacement des lettres : '
+                       '${library.settings.subtitleLetterSpacing.toStringAsFixed(1)}',
+                       style: TextStyle(color: Palette.muted, fontSize: 12)),
+                   Slider(
+                     min: -1, max: 5, divisions: 24,
+                     value: library.settings.subtitleLetterSpacing.clamp(-1.0, 5.0).toDouble(),
+                     onChanged: (v) => update(() => library.settings.subtitleLetterSpacing = v),
+                     onChangeEnd: (v) => library.updateSettings(
+                         (s) => s.subtitleLetterSpacing = v),
+                   ),
+                   Text('Interligne : '
+                       '${library.settings.subtitleLineHeight.toStringAsFixed(2)}',
+                       style: TextStyle(color: Palette.muted, fontSize: 12)),
+                   Slider(
+                     min: 1, max: 2, divisions: 20,
+                     value: library.settings.subtitleLineHeight.clamp(1.0, 2.0).toDouble(),
+                     onChanged: (v) => update(() => library.settings.subtitleLineHeight = v),
+                     onChangeEnd: (v) => library.updateSettings(
+                         (s) => s.subtitleLineHeight = v),
+                   ),
+                   Text('Opacité du texte : '
+                       '${(library.settings.subtitleOpacity * 100).round()} %',
+                       style: TextStyle(color: Palette.muted, fontSize: 12)),
+                   Slider(
+                     min: 0.3, max: 1, divisions: 14,
+                     value: library.settings.subtitleOpacity.clamp(0.3, 1.0).toDouble(),
+                     onChanged: (v) => update(() => library.settings.subtitleOpacity = v),
+                     onChangeEnd: (v) => library.updateSettings(
+                         (s) => s.subtitleOpacity = v),
+                   ),
+                   OutlinedButton.icon(
+                     onPressed: () => update(() => library.updateSettings((s) {
+                       s.subtitleSize = 32;
+                       s.subtitleColor = 0xFFFFFFFF;
+                       s.subtitleStyle = 'shadow';
+                       s.subtitleBold = false;
+                       s.subtitleBottom = 24;
+                       s.subtitleFont = 'default';
+                       s.subtitleLetterSpacing = 0;
+                       s.subtitleLineHeight = 1.3;
+                       s.subtitleOpacity = 1;
+                     })),
+                     icon: const Icon(Icons.restart_alt),
+                     label: const Text('Réinitialiser l’apparence'),
+                   ),
+                   const SizedBox(height: 10),
+                   OutlinedButton.icon(
+                     onPressed: () { Navigator.pop(ctx); _showTracks(); },
+                     icon: const Icon(Icons.audiotrack_outlined),
+                     label: const Text('Choisir langue audio et sous-titres'),
+                   ),
+                     ],
+                   ),
+                   ExpansionTile(
+                     key: const PageStorageKey('v52-playback'),
+                     leading: const Icon(Icons.play_circle_outline),
+                     title: const Text('Lecture et enchaînement'),
+                     subtitle: const Text('Épisodes, génériques, minuterie'),
+                     children: [
+                   _optionTitle('Saut des flèches'),
                   _choices(
                     values: const {
                       '5': '5 s',
@@ -1789,8 +1880,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ),
                     ),
 
-                  const SizedBox(height: 18),
-                  Wrap(
+                     ],
+                   ),
+                   ExpansionTile(
+                     key: const PageStorageKey('v52-tools'),
+                     leading: const Icon(Icons.build_outlined),
+                     title: const Text('Outils et informations'),
+                     subtitle: const Text('Verrouillage, pistes et diagnostic'),
+                     children: [
+                   const SizedBox(height: 18),
+                   Wrap(
                     spacing: 10,
                     runSpacing: 10,
                     children: [
@@ -1844,10 +1943,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   Text(
                     'Raccourcis clavier : espace pause, flèches déplacement et volume, '
                     'S passer l\'intro, N et P changer d\'épisode, Échap quitter.',
-                    style: TextStyle(
-                        color: Palette.muted, fontSize: 11.5, height: 1.4),
-                  ),
-                ],
+                     style: TextStyle(
+                         color: Palette.muted, fontSize: 11.5, height: 1.4),
+                   ),
+                     ],
+                   ),
+                 ],
               ),
             ),
           );

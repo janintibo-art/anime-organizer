@@ -44,6 +44,11 @@ class AppSettings {
   String subtitleStyle = 'shadow';
   bool subtitleBold = false;
   double subtitleBottom = 24;
+  // V52_MENU_GROUPES : personnalisation avancée, conservée dans library.json.
+  String subtitleFont = 'default'; // default | serif | monospace
+  double subtitleLetterSpacing = 0;
+  double subtitleLineHeight = 1.3;
+  double subtitleOpacity = 1;
   String videoFit = 'contain'; // contain | cover | fill
   bool hardwareDecoding = true;
   String preferredAudio = '';
@@ -90,6 +95,10 @@ class AppSettings {
         'subtitleStyle': subtitleStyle,
         'subtitleBold': subtitleBold,
         'subtitleBottom': subtitleBottom,
+        'subtitleFont': subtitleFont,
+        'subtitleLetterSpacing': subtitleLetterSpacing,
+        'subtitleLineHeight': subtitleLineHeight,
+        'subtitleOpacity': subtitleOpacity,
         'videoFit': videoFit,
         'hardwareDecoding': hardwareDecoding,
         'preferredAudio': preferredAudio,
@@ -139,6 +148,15 @@ class AppSettings {
     s.subtitleBold = j['subtitleBold'] as bool? ?? false;
     s.subtitleBottom =
         ((j['subtitleBottom'] as num?)?.toDouble() ?? 24).clamp(0, 400).toDouble();
+    s.subtitleFont = const {'default', 'serif', 'monospace'}
+            .contains(j['subtitleFont'])
+        ? j['subtitleFont'] as String : 'default';
+    s.subtitleLetterSpacing = ((j['subtitleLetterSpacing'] as num?)?.toDouble() ?? 0)
+        .clamp(-1.0, 5.0).toDouble();
+    s.subtitleLineHeight = ((j['subtitleLineHeight'] as num?)?.toDouble() ?? 1.3)
+        .clamp(1.0, 2.0).toDouble();
+    s.subtitleOpacity = ((j['subtitleOpacity'] as num?)?.toDouble() ?? 1)
+        .clamp(0.3, 1.0).toDouble();
     s.videoFit = j['videoFit'] as String? ?? 'contain';
     s.hardwareDecoding = j['hardwareDecoding'] as bool? ?? true;
     s.preferredAudio = j['preferredAudio'] as String? ?? '';
